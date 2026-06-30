@@ -1,0 +1,54 @@
+[gd_scene format=3 uid="uid://dayyi8xv86gsi"]
+
+[ext_resource type="Script" uid="uid://c7sbyrdos1gxi" path="res://Scenes/UI/spinner.gd" id="1_b85vm"]
+[ext_resource type="Shader" uid="uid://cfpkknnqmofmp" path="res://Assets/spinner.gdshader" id="2_i515b"]
+[ext_resource type="Theme" uid="uid://g6lkwy74ulmi" path="res://Assets/iq_theme.tres" id="3_i515b"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_y5w7u"]
+shader = ExtResource("2_i515b")
+shader_parameter/spinner_radius_factor = 0.7
+shader_parameter/dot_color = Color(1, 1, 1, 1)
+shader_parameter/rotation_speed = 0.8
+
+[node name="Spinner" type="CanvasLayer" unique_id=2062097731]
+script = ExtResource("1_b85vm")
+
+[node name="Background" type="ColorRect" parent="." unique_id=2047990574]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.8)
+
+[node name="CenterContainer" type="CenterContainer" parent="." unique_id=336640344]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer" unique_id=2027458224]
+custom_minimum_size = Vector2(400, 300)
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="Spinner" type="ColorRect" parent="CenterContainer/VBoxContainer" unique_id=1573542653]
+material = SubResource("ShaderMaterial_y5w7u")
+custom_minimum_size = Vector2(128, 128)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="PhrasesLabel" type="Label" parent="CenterContainer/VBoxContainer" unique_id=765163107]
+custom_minimum_size = Vector2(500, 0)
+layout_mode = 2
+size_flags_vertical = 8
+theme_override_font_sizes/font_size = 20
+text = "Decentralizing The Earth"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="ProgressBar" type="ProgressBar" parent="CenterContainer/VBoxContainer" unique_id=1873060284]
+layout_mode = 2
+theme = ExtResource("3_i515b")

@@ -1,0 +1,318 @@
+[gd_scene load_steps=9 format=3 uid="uid://cmov52e0710xr"]
+
+[ext_resource type="Theme" uid="uid://g6lkwy74ulmi" path="res://Assets/iq_theme.tres" id="1_jgl57"]
+[ext_resource type="Script" uid="uid://cp8m7xah0oswm" path="res://Scenes/UI/browser_ui.gd" id="2_8i1q6"]
+[ext_resource type="PackedScene" uid="uid://dugrnyolfwrmh" path="res://Scenes/Backend/data_handler.tscn" id="3_f8u0t"]
+[ext_resource type="PackedScene" uid="uid://dppsf6votef85" path="res://Scenes/Backend/iqsdk.tscn" id="5_urnrq"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_guae4"]
+bg_color = Color(0.05882353, 0.05882353, 0.05882353, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_3t3nw"]
+bg_color = Color(0, 0, 0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_f8u0t"]
+bg_color = Color(0.26666668, 0.26666668, 0.26666668, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_urnrq"]
+bg_color = Color(0, 0, 0, 1)
+
+[node name="BrowserUI" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("1_jgl57")
+script = ExtResource("2_8i1q6")
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="HBoxContainer" type="HBoxContainer" parent="Panel/MarginContainer"]
+layout_mode = 2
+
+[node name="Bookmarks" type="Panel" parent="Panel/MarginContainer/HBoxContainer"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_guae4")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/HBoxContainer/Bookmarks"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="BookmarkList" type="ItemList" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="DeleteBookmarkButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 8
+theme_override_styles/normal = SubResource("StyleBoxFlat_3t3nw")
+disabled = true
+text = "Delete Bookmark"
+
+[node name="AddBookmarkButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 8
+text = "Add Bookmark"
+
+[node name="BookmarksHideButton" type="Button" parent="Panel/MarginContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 8
+toggle_mode = true
+text = "<-"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="URL" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TransactionId" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId"]
+layout_mode = 2
+text = "TransactionId: "
+
+[node name="IDInput" type="LineEdit" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "62796ZmJgfL2i1TYbaqkH3MdrCTycz1VwcTu6vrFNuAETQZFCmsbqfBrGPEQrNqG9oqjFAF9k9x1XdbtEwJfPd7f"
+
+[node name="EncryptionPass" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass"]
+layout_mode = 2
+text = "Passphrase (optional):"
+
+[node name="PassInput" type="LineEdit" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Optional decryption key"
+secret = true
+
+[node name="DataType" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DataType"]
+layout_mode = 2
+text = "Data Type:"
+
+[node name="DataTypeOption" type="OptionButton" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DataType"]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+item_count = 1
+popup/item_0/text = "Download File"
+popup/item_0/id = 0
+
+[node name="LoadButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL"]
+custom_minimum_size = Vector2(65, 65)
+layout_mode = 2
+text = "Go"
+
+[node name="URLHideButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer"]
+layout_mode = 2
+toggle_mode = true
+text = "^"
+
+[node name="Content" type="MarginContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/Content"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/Content/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ContentLabel" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/Content/VBoxContainer/ScrollContainer"]
+custom_minimum_size = Vector2(900, 400)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 10
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+autowrap_trim_flags = 0
+
+[node name="AddBookmark" type="Panel" parent="."]
+visible = false
+custom_minimum_size = Vector2(800, 500)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_f8u0t")
+
+[node name="MarginContainer" type="MarginContainer" parent="AddBookmark"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="CenterContainer" type="CenterContainer" parent="AddBookmark/MarginContainer"]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer"]
+custom_minimum_size = Vector2(1000, 0)
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Name" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Name"]
+layout_mode = 2
+text = "Name:"
+
+[node name="Name" type="LineEdit" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Name"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TransactionId" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/TransactionId"]
+layout_mode = 2
+text = "TransactionID"
+
+[node name="TransactionId" type="LineEdit" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/TransactionId"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Passphrase" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Passphrase"]
+layout_mode = 2
+text = "Passphrase (optional):"
+
+[node name="Passphrase" type="LineEdit" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Passphrase"]
+layout_mode = 2
+size_flags_horizontal = 3
+secret = true
+
+[node name="DataType" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/DataType"]
+layout_mode = 2
+text = "DataType: "
+
+[node name="DataTypeOption" type="OptionButton" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/DataType"]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+selected = 0
+item_count = 3
+popup/item_0/text = "Text"
+popup/item_0/id = 0
+popup/item_1/text = "ASCII Art"
+popup/item_1/id = 1
+popup/item_2/text = "Godot PCK"
+popup/item_2/id = 2
+
+[node name="HSeparator" type="HSeparator" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="ConfirmCancel" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="CancelAddBookmarkButton" type="Button" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/ConfirmCancel"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_urnrq")
+text = "Cancel"
+
+[node name="ConfirmAddBookmarkButton" type="Button" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/ConfirmCancel"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Confirm"
+
+[node name="StatusLabel" type="Label" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -22.0
+grow_horizontal = 2
+grow_vertical = 0
+size_flags_vertical = 8
+text = "Ready"
+horizontal_alignment = 1
+
+[node name="IQSDK" parent="." instance=ExtResource("5_urnrq")]
+
+[node name="DataHandler" parent="." instance=ExtResource("3_f8u0t")]
+
+[connection signal="item_selected" from="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/BookmarkList" to="." method="_on_bookmark_list_item_selected"]
+[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/DeleteBookmarkButton" to="." method="_on_delete_bookmark_button_pressed"]
+[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/AddBookmarkButton" to="." method="_on_add_bookmark_button_pressed"]
+[connection signal="toggled" from="Panel/MarginContainer/HBoxContainer/BookmarksHideButton" to="." method="_on_bookmarks_hide_button_toggled"]
+[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/LoadButton" to="." method="_on_load_button_pressed"]
+[connection signal="toggled" from="Panel/MarginContainer/HBoxContainer/VBoxContainer/URLHideButton" to="." method="_on_url_hide_button_toggled"]
+[connection signal="pressed" from="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/ConfirmCancel/CancelAddBookmarkButton" to="." method="_on_cancel_add_bookmark_button_pressed"]
+[connection signal="pressed" from="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/ConfirmCancel/ConfirmAddBookmarkButton" to="." method="_on_confirm_add_bookmark_button_pressed"]

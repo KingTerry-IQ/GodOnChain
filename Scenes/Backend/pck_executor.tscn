@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://dqpl8ilcvvqg"]
+
+[ext_resource type="Script" uid="uid://bwix3gjkfwkqx" path="res://Scenes/Backend/pck_executor.gd" id="1_0cms4"]
+
+[node name="PckExecutor" type="Node" unique_id=1657542410]
+script = ExtResource("1_0cms4")
+
+[node name="GodotSelector" type="FileDialog" parent="." unique_id=457679627]
+title = "Open a File"
+file_mode = 0
+access = 2
+use_native_dialog = true
+
+[connection signal="canceled" from="GodotSelector" to="." method="_on_godot_selector_canceled"]
+[connection signal="file_selected" from="GodotSelector" to="." method="_on_godot_selector_file_selected"]

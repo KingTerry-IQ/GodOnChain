@@ -1,0 +1,28 @@
+[gd_scene format=3 uid="uid://b5ireg52h0sme"]
+
+[ext_resource type="Script" uid="uid://hw2y7ix7i57l" path="res://Scenes/Backend/IQ_SDK.gd" id="1_hccns"]
+[ext_resource type="PackedScene" uid="uid://dqpl8ilcvvqg" path="res://Scenes/Backend/pck_executor.tscn" id="2_cgd2q"]
+[ext_resource type="PackedScene" uid="uid://dugrnyolfwrmh" path="res://Scenes/Backend/data_handler.tscn" id="3_tleoe"]
+
+[node name="IQSDK" type="Node" unique_id=1167378262]
+script = ExtResource("1_hccns")
+
+[node name="FileUploadSelector" type="FileDialog" parent="." unique_id=2076345735]
+title = "Open a File"
+file_mode = 0
+access = 2
+use_native_dialog = true
+
+[node name="FileDownloadSelector" type="FileDialog" parent="." unique_id=1037509238]
+access = 2
+use_native_dialog = true
+
+[node name="PckExecutor" parent="." unique_id=1657542410 instance=ExtResource("2_cgd2q")]
+
+[node name="DataHandler" parent="." unique_id=2101791151 instance=ExtResource("3_tleoe")]
+
+[connection signal="canceled" from="FileUploadSelector" to="." method="_on_file_upload_selector_canceled"]
+[connection signal="file_selected" from="FileUploadSelector" to="." method="_on_file_upload_selector_file_selected"]
+[connection signal="canceled" from="FileDownloadSelector" to="." method="_on_file_download_selector_canceled"]
+[connection signal="file_selected" from="FileDownloadSelector" to="." method="_on_file_download_selector_file_selected"]
+[connection signal="godot_exe_path_selected" from="PckExecutor" to="." method="_on_pck_executor_godot_exe_path_selected"]

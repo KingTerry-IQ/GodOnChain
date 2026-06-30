@@ -1,0 +1,587 @@
+[gd_scene format=3 uid="uid://c7qba01j8nb2h"]
+
+[ext_resource type="Theme" uid="uid://g6lkwy74ulmi" path="res://Assets/iq_theme.tres" id="1_ncg8e"]
+[ext_resource type="Script" uid="uid://d0jd6k4t4mwnt" path="res://Scenes/UI/browser_ui.gd" id="2_uey33"]
+[ext_resource type="PackedScene" uid="uid://dayyi8xv86gsi" path="res://Scenes/UI/spinner.tscn" id="3_2ryth"]
+[ext_resource type="PackedScene" uid="uid://b5ireg52h0sme" path="res://Scenes/Backend/iqsdk.tscn" id="4_uey33"]
+[ext_resource type="PackedScene" uid="uid://dugrnyolfwrmh" path="res://Scenes/Backend/data_handler.tscn" id="5_f8u0t"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_guae4"]
+bg_color = Color(0.05882353, 0.05882353, 0.05882353, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_3t3nw"]
+bg_color = Color(0, 0, 0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_f8u0t"]
+bg_color = Color(0.26666668, 0.26666668, 0.26666668, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_urnrq"]
+bg_color = Color(0, 0, 0, 1)
+
+[node name="BrowserUI" type="Control" unique_id=327621474]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("1_ncg8e")
+script = ExtResource("2_uey33")
+
+[node name="Spinner" parent="." unique_id=300519028 instance=ExtResource("3_2ryth")]
+visible = false
+
+[node name="Panel" type="Panel" parent="." unique_id=1270282090]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel" unique_id=731702405]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+metadata/_edit_lock_ = true
+
+[node name="HBoxContainer" type="HBoxContainer" parent="Panel/MarginContainer" unique_id=1407764229]
+layout_mode = 2
+
+[node name="Bookmarks" type="Panel" parent="Panel/MarginContainer/HBoxContainer" unique_id=1123423996]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_guae4")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/HBoxContainer/Bookmarks" unique_id=2051071102]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer" unique_id=1689989643]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer" unique_id=778344401]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="UploadButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=1756289171]
+layout_mode = 2
+text = "Code In!!!"
+
+[node name="HSeparator" type="HSeparator" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=1750936203]
+layout_mode = 2
+
+[node name="BookmarkList" type="ItemList" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=834878003]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="DeleteBookmarkButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=120677721]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 8
+theme_override_styles/normal = SubResource("StyleBoxFlat_3t3nw")
+disabled = true
+text = "Delete Bookmark"
+
+[node name="AddBookmarkButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=1361672419]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 8
+text = "Add Bookmark"
+
+[node name="BookmarksHideButton" type="Button" parent="Panel/MarginContainer/HBoxContainer" unique_id=1283020683]
+layout_mode = 2
+size_flags_horizontal = 8
+toggle_mode = true
+text = "<-"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer" unique_id=915258369]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="URL" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer" unique_id=1906192062]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL" unique_id=836955861]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TransactionId" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer" unique_id=1095978374]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId" unique_id=1208781501]
+layout_mode = 2
+text = "Id:"
+
+[node name="IDInput" type="LineEdit" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId" unique_id=1863227433]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ChainOption" type="OptionButton" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId" unique_id=552436424]
+custom_minimum_size = Vector2(50, 0)
+layout_mode = 2
+theme = ExtResource("1_ncg8e")
+alignment = 1
+selected = 1
+item_count = 3
+popup/item_0/text = "SOL"
+popup/item_0/id = 0
+popup/item_1/text = "MON"
+popup/item_1/id = 1
+popup/item_2/text = "ETH"
+popup/item_2/id = 2
+popup/item_2/disabled = true
+
+[node name="EncryptionPass" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer" unique_id=783442675]
+layout_mode = 2
+
+[node name="EncryptionOption" type="OptionButton" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass" unique_id=1084419173]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+selected = 0
+item_count = 3
+popup/item_0/text = "No Encryption (Public Data)"
+popup/item_0/id = 0
+popup/item_1/text = "PBKDF2 + AES-256-CBC"
+popup/item_1/id = 1
+popup/item_2/text = "HanLock"
+popup/item_2/id = 2
+
+[node name="PassInput" type="LineEdit" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass" unique_id=1627006626]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Decryption key"
+secret = true
+
+[node name="DataType" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer" unique_id=310737265]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DataType" unique_id=243464652]
+layout_mode = 2
+text = "Data Type:"
+
+[node name="DataTypeOption" type="OptionButton" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DataType" unique_id=187357151]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+item_count = 5
+popup/item_0/text = "Metadata"
+popup/item_0/id = 0
+popup/item_1/text = "Simple Text"
+popup/item_1/id = 1
+popup/item_2/text = "ASCII Art"
+popup/item_2/id = 2
+popup/item_2/disabled = true
+popup/item_3/text = "Downloadable File"
+popup/item_3/id = 3
+popup/item_4/text = "Godot .PCK/.ZIP"
+popup/item_4/id = 4
+
+[node name="GodotPath" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer" unique_id=2032484617]
+visible = false
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=257592550]
+layout_mode = 2
+text = "Godot Path:"
+
+[node name="GodotPath" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=1533108100]
+layout_mode = 2
+text = "[Not Yet Selected]"
+
+[node name="SelectGodotPathButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=1959957553]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+text = "Select"
+
+[node name="VSeparator" type="VSeparator" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=81544841]
+layout_mode = 2
+
+[node name="LocalCacheCheckbox" type="CheckBox" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=2039442385]
+layout_mode = 2
+size_flags_horizontal = 3
+button_pressed = true
+text = "  Use Local Downloaded App Cache"
+
+[node name="LoadButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL" unique_id=934239533]
+custom_minimum_size = Vector2(65, 65)
+layout_mode = 2
+text = "Go"
+
+[node name="URLHideButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer" unique_id=1418346289]
+layout_mode = 2
+toggle_mode = true
+text = "^"
+
+[node name="Content" type="MarginContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer" unique_id=1983908484]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/Content" unique_id=1146756571]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/Content/VBoxContainer" unique_id=1978243192]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ContentLabel" type="RichTextLabel" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/Content/VBoxContainer/ScrollContainer" unique_id=806231229]
+custom_minimum_size = Vector2(900, 400)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+focus_mode = 2
+autowrap_trim_flags = 0
+context_menu_enabled = true
+horizontal_alignment = 1
+vertical_alignment = 1
+selection_enabled = true
+
+[node name="AddBookmark" type="Panel" parent="." unique_id=1892585286]
+visible = false
+custom_minimum_size = Vector2(800, 500)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_f8u0t")
+
+[node name="MarginContainer" type="MarginContainer" parent="AddBookmark" unique_id=1593850197]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="CenterContainer" type="CenterContainer" parent="AddBookmark/MarginContainer" unique_id=82357903]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer" unique_id=55134401]
+custom_minimum_size = Vector2(1000, 0)
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Name" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer" unique_id=445923318]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Name" unique_id=1525499424]
+layout_mode = 2
+text = "Name:"
+
+[node name="Name" type="LineEdit" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Name" unique_id=203153404]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TransactionId" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer" unique_id=2129250805]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/TransactionId" unique_id=1380594003]
+layout_mode = 2
+text = "TransactionID"
+
+[node name="TransactionId" type="LineEdit" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/TransactionId" unique_id=2096528152]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ChainOption" type="OptionButton" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/TransactionId" unique_id=2088501518]
+custom_minimum_size = Vector2(50, 0)
+layout_mode = 2
+theme = ExtResource("1_ncg8e")
+alignment = 1
+selected = 1
+item_count = 3
+popup/item_0/text = "SOL"
+popup/item_0/id = 0
+popup/item_1/text = "MON"
+popup/item_1/id = 1
+popup/item_2/text = "ETH"
+popup/item_2/id = 2
+popup/item_2/disabled = true
+
+[node name="Passphrase" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer" unique_id=1193500727]
+layout_mode = 2
+
+[node name="EncryptionOptionBookmark" type="OptionButton" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Passphrase" unique_id=222917378]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+selected = 0
+item_count = 3
+popup/item_0/text = "No Encryption (Public Data)"
+popup/item_0/id = 0
+popup/item_1/text = "PBKDF2 + AES-256-CBC"
+popup/item_1/id = 1
+popup/item_2/text = "HanLock"
+popup/item_2/id = 2
+
+[node name="Passphrase" type="LineEdit" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Passphrase" unique_id=1242152322]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+secret = true
+
+[node name="DataType" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer" unique_id=1625552908]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/DataType" unique_id=659893672]
+layout_mode = 2
+text = "DataType: "
+
+[node name="DataTypeOptionBookmark" type="OptionButton" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/DataType" unique_id=1196317303]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+selected = 0
+item_count = 5
+popup/item_0/text = "Metadata"
+popup/item_0/id = 0
+popup/item_1/text = "Simple Text"
+popup/item_1/id = 1
+popup/item_2/text = "ASCII Art"
+popup/item_2/id = 2
+popup/item_2/disabled = true
+popup/item_3/text = "Downloadable File"
+popup/item_3/id = 3
+popup/item_4/text = "Godot .PCK/.ZIP"
+popup/item_4/id = 4
+
+[node name="HSeparator" type="HSeparator" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer" unique_id=1564422399]
+layout_mode = 2
+
+[node name="ConfirmCancel" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer" unique_id=1426562909]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="CancelAddBookmarkButton" type="Button" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/ConfirmCancel" unique_id=747398859]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_urnrq")
+text = "Cancel"
+
+[node name="ConfirmAddBookmarkButton" type="Button" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/ConfirmCancel" unique_id=1500811439]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Confirm"
+
+[node name="Upload" type="Panel" parent="." unique_id=937370185]
+visible = false
+custom_minimum_size = Vector2(800, 500)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_f8u0t")
+
+[node name="MarginContainer" type="MarginContainer" parent="Upload" unique_id=1223574980]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Upload/MarginContainer" unique_id=404212591]
+custom_minimum_size = Vector2(1000, 0)
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Title" type="Label" parent="Upload/MarginContainer/VBoxContainer" unique_id=997622565]
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 32
+text = "Code In"
+horizontal_alignment = 1
+uppercase = true
+
+[node name="HSeparator2" type="HSeparator" parent="Upload/MarginContainer/VBoxContainer" unique_id=883400795]
+layout_mode = 2
+
+[node name="Name" type="HBoxContainer" parent="Upload/MarginContainer/VBoxContainer" unique_id=1632599759]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Upload/MarginContainer/VBoxContainer/Name" unique_id=1535411093]
+layout_mode = 2
+text = "Name:"
+
+[node name="Name" type="LineEdit" parent="Upload/MarginContainer/VBoxContainer/Name" unique_id=1839081133]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ChainOptionUpload" type="OptionButton" parent="Upload/MarginContainer/VBoxContainer/Name" unique_id=1279766360]
+custom_minimum_size = Vector2(50, 0)
+layout_mode = 2
+theme = ExtResource("1_ncg8e")
+alignment = 1
+selected = 1
+item_count = 3
+popup/item_0/text = "SOL"
+popup/item_0/id = 0
+popup/item_1/text = "MON"
+popup/item_1/id = 1
+popup/item_2/text = "ETH"
+popup/item_2/id = 2
+popup/item_2/disabled = true
+
+[node name="Passphrase" type="HBoxContainer" parent="Upload/MarginContainer/VBoxContainer" unique_id=467777405]
+layout_mode = 2
+
+[node name="EncryptionOptionUpload" type="OptionButton" parent="Upload/MarginContainer/VBoxContainer/Passphrase" unique_id=1570650372]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+selected = 0
+item_count = 3
+popup/item_0/text = "No Encryption (Public Data)"
+popup/item_0/id = 0
+popup/item_1/text = "PBKDF2 + AES-256-CBC"
+popup/item_1/id = 1
+popup/item_2/text = "HanLock"
+popup/item_2/id = 2
+
+[node name="Passphrase" type="LineEdit" parent="Upload/MarginContainer/VBoxContainer/Passphrase" unique_id=824509373]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+secret = true
+
+[node name="DataType" type="HBoxContainer" parent="Upload/MarginContainer/VBoxContainer" unique_id=577868144]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Upload/MarginContainer/VBoxContainer/DataType" unique_id=26746267]
+layout_mode = 2
+text = "DataType: "
+
+[node name="DataTypeOptionUpload" type="OptionButton" parent="Upload/MarginContainer/VBoxContainer/DataType" unique_id=1431402908]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+selected = 0
+item_count = 4
+popup/item_0/text = "Simple Text"
+popup/item_0/id = 0
+popup/item_1/text = "ASCII Art"
+popup/item_1/id = 1
+popup/item_1/disabled = true
+popup/item_2/text = "Downloadable File"
+popup/item_2/id = 2
+popup/item_3/text = "Godot .PCK/.ZIP"
+popup/item_3/id = 3
+
+[node name="TextEdit" type="TextEdit" parent="Upload/MarginContainer/VBoxContainer" unique_id=1868834934]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="FileSelectContainer" type="HBoxContainer" parent="Upload/MarginContainer/VBoxContainer" unique_id=1846788769]
+visible = false
+layout_mode = 2
+
+[node name="PathLabel" type="Label" parent="Upload/MarginContainer/VBoxContainer/FileSelectContainer" unique_id=1750013936]
+layout_mode = 2
+text = "Selected File: [Not Yet Selected] "
+
+[node name="FileSelector" type="Button" parent="Upload/MarginContainer/VBoxContainer/FileSelectContainer" unique_id=2104168210]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Select File"
+
+[node name="CostLabel" type="Label" parent="Upload/MarginContainer/VBoxContainer" unique_id=148225821]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Estimated Cost: 6.52 MON"
+
+[node name="HSeparator" type="HSeparator" parent="Upload/MarginContainer/VBoxContainer" unique_id=1673600401]
+layout_mode = 2
+
+[node name="ConfirmCancel" type="HBoxContainer" parent="Upload/MarginContainer/VBoxContainer" unique_id=1858490986]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="CancelUpload" type="Button" parent="Upload/MarginContainer/VBoxContainer/ConfirmCancel" unique_id=1806910503]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_urnrq")
+text = "Cancel"
+
+[node name="ConfirmUpload" type="Button" parent="Upload/MarginContainer/VBoxContainer/ConfirmCancel" unique_id=907467556]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Confirm"
+
+[node name="StatusLabel" type="Label" parent="." unique_id=707990470]
+visible = false
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -22.0
+grow_horizontal = 2
+grow_vertical = 0
+size_flags_vertical = 8
+text = "Ready"
+horizontal_alignment = 1
+
+[node name="IQSDK" parent="." unique_id=1167378262 instance=ExtResource("4_uey33")]
+
+[node name="DataHandler" parent="." unique_id=2101791151 instance=ExtResource("5_f8u0t")]
+
+[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/UploadButton" to="." method="_on_upload_button_pressed"]
+[connection signal="item_selected" from="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/BookmarkList" to="." method="_on_bookmark_list_item_selected"]
+[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/DeleteBookmarkButton" to="." method="_on_delete_bookmark_button_pressed"]
+[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/AddBookmarkButton" to="." method="_on_add_bookmark_button_pressed"]
+[connection signal="toggled" from="Panel/MarginContainer/HBoxContainer/BookmarksHideButton" to="." method="_on_bookmarks_hide_button_toggled"]
+[connection signal="item_selected" from="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass/EncryptionOption" to="." method="_on_encryption_option_item_selected"]
+[connection signal="item_selected" from="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DataType/DataTypeOption" to="." method="_on_data_type_option_item_selected"]
+[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath/SelectGodotPathButton" to="." method="_on_select_godot_path_button_pressed"]
+[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/LoadButton" to="." method="_on_load_button_pressed"]
+[connection signal="toggled" from="Panel/MarginContainer/HBoxContainer/VBoxContainer/URLHideButton" to="." method="_on_url_hide_button_toggled"]
+[connection signal="item_selected" from="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Passphrase/EncryptionOptionBookmark" to="." method="_on_encryption_option_bookmark_item_selected"]
+[connection signal="pressed" from="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/ConfirmCancel/CancelAddBookmarkButton" to="." method="_on_cancel_add_bookmark_button_pressed"]
+[connection signal="pressed" from="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/ConfirmCancel/ConfirmAddBookmarkButton" to="." method="_on_confirm_add_bookmark_button_pressed"]
+[connection signal="item_selected" from="Upload/MarginContainer/VBoxContainer/Name/ChainOptionUpload" to="." method="_on_chain_option_upload_item_selected"]
+[connection signal="item_selected" from="Upload/MarginContainer/VBoxContainer/Passphrase/EncryptionOptionUpload" to="." method="_on_encryption_option_upload_item_selected"]
+[connection signal="item_selected" from="Upload/MarginContainer/VBoxContainer/DataType/DataTypeOptionUpload" to="." method="_on_data_type_option_upload_item_selected"]
+[connection signal="pressed" from="Upload/MarginContainer/VBoxContainer/FileSelectContainer/FileSelector" to="." method="_on_file_selector_pressed"]
+[connection signal="pressed" from="Upload/MarginContainer/VBoxContainer/ConfirmCancel/CancelUpload" to="." method="_on_cancel_upload_pressed"]
+[connection signal="pressed" from="Upload/MarginContainer/VBoxContainer/ConfirmCancel/ConfirmUpload" to="." method="_on_confirm_upload_pressed"]
+[connection signal="file_upload_path_selected" from="IQSDK" to="." method="_on_iqsdk_file_upload_path_selected"]
+[connection signal="godot_exe_path_selected" from="IQSDK" to="." method="_on_iqsdk_godot_exe_path_selected"]
+[connection signal="load_complete" from="IQSDK" to="." method="_on_iqsdk_load_complete"]
+[connection signal="load_failed" from="IQSDK" to="." method="_on_iqsdk_load_failed"]
+[connection signal="load_started" from="IQSDK" to="." method="_on_iqsdk_load_started"]

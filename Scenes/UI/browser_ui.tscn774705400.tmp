@@ -1,0 +1,137 @@
+[gd_scene load_steps=4 format=3 uid="uid://dwtl0pebfgq16"]
+
+[ext_resource type="Theme" uid="uid://g6lkwy74ulmi" path="res://Assets/iq_theme.tres" id="1_jgl57"]
+[ext_resource type="Script" uid="uid://ceeo52td11742" path="res://Scenes/UI/browser_ui.gd" id="2_8i1q6"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_guae4"]
+bg_color = Color(0.05882353, 0.05882353, 0.05882353, 1)
+
+[node name="BrowserUI" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("1_jgl57")
+script = ExtResource("2_8i1q6")
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="HBoxContainer" type="HBoxContainer" parent="Panel/MarginContainer"]
+layout_mode = 2
+
+[node name="Bookmarks" type="Panel" parent="Panel/MarginContainer/HBoxContainer"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_guae4")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/HBoxContainer/Bookmarks"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="BookmarkList" type="ItemList" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="NewBookmarkButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 8
+text = "New Bookmark"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="URL" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TransactionId" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId"]
+layout_mode = 2
+text = "TransactionId: "
+
+[node name="IDInput" type="LineEdit" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="EncryptionPass" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass"]
+layout_mode = 2
+text = "Passphrase (optional):"
+
+[node name="PassInput" type="LineEdit" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LoadButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL"]
+custom_minimum_size = Vector2(65, 65)
+layout_mode = 2
+size_flags_vertical = 0
+text = "Go"
+
+[node name="Content" type="MarginContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="CenterContainer" type="CenterContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/Content"]
+layout_mode = 2
+
+[node name="ContentLabel" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/Content/CenterContainer"]
+layout_mode = 2
+size_flags_vertical = 1
+text = "Hello"
+
+[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/Content"]
+layout_mode = 2
+size_flags_vertical = 8
+text = "Ready"
+horizontal_alignment = 1
