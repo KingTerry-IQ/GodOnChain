@@ -6,8 +6,19 @@ const OPTIONS_PATH: String = "user://options.tres"
 @onready var options: Options
 
 @onready var iq_sdk: IQ_SDK = $IQSDK
+@onready var data_handler: DataHandler = $DataHandler
 
 @onready var spinner: ProgressSpinner = $Spinner
+
+enum DataType {
+	METADATA = 0,
+	SIMPLE_TEXT = 1,
+	ASCII_ART = 2,
+	DOWNLOADABLE_FILE = 3,
+	GODOT_PCK = 4,
+	DB_ROOT_TABLES = 5,
+	DB_TABLE_ROWS = 6,
+}
 
 @onready var id_input: LineEdit = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId/IDInput
 @onready var encrypt_option: OptionButton = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass/EncryptionOption
@@ -66,27 +77,50 @@ func _on_load_button_pressed() -> void:
 		return
 		
 	match data_type_option.get_selected_id():
-		0:
+		DataType.METADATA:
 			_show_status("Reading %s" % id)
 			var result = await iq_sdk.read_code_in_metadata(id, spinner.set_progress, chain_option.text)
 			content_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			content_label.text = result
-		1:
+		DataType.SIMPLE_TEXT:
 			_show_status("Reading %s" % id)
 			var result = await iq_sdk.read_code_in_text(id, encrypt_option.selected, passphrase, spinner.set_progress, chain_option.text)
 			content_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			content_label.text = result
-		3:
+		DataType.ASCII_ART:
+			_show_status("Reading %s (ASCII Art)" % id)
+			var result = await iq_sdk.read_code_in_text(id, encrypt_option.selected, passphrase, spinner.set_progress, chain_option.text)
+			content_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			content_label.text = data_handler.parse_ascii_art(result)
+		DataType.DOWNLOADABLE_FILE:
 			_show_status("Downloading %s" % id)
 			content_label.text = ""
 			await iq_sdk.read_code_in_file(id, encrypt_option.selected, passphrase, spinner.set_progress, chain_option.text)
-		4:
+		DataType.GODOT_PCK:
 			if iq_sdk.pck_executor._godot_exe_path == "":
 				_show_status("Please select a path for Godot before attempting to launch a Godot .PCK \n Godot may be downloaded from https://godotengine.org/")
 				return
 			_show_status("Downloading and attempting to run Godot PCK at %s" % id)
 			content_label.text = ""
 			await iq_sdk.read_code_in_godot_pck(id, encrypt_option.selected, passphrase, godot_use_local_cache_check.button_pressed, spinner.set_progress, chain_option.text)
+		DataType.DB_ROOT_TABLES:
+			_show_status("Loading DB tables list for root %s on %s" % [id, chain_option.text])
+			content_label.text = ""
+			var result: Dictionary = await iq_sdk.get_db_table_list(id, spinner.set_progress, chain_option.text)
+			content_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			content_label.text = data_handler.format_as_db_list(result)
+		DataType.DB_TABLE_ROWS:
+			_show_status("Loading DB table rows for %s on %s" % [id, chain_option.text])
+			content_label.text = ""
+			var key := id
+			var tname := ""
+			if chain_option.text.to_lower().begins_with("mon") and key.contains("/"):
+				var parts := key.split("/", true, 1)
+				key = parts[0]
+				tname = parts[1]
+			var result: Dictionary = await iq_sdk.read_db_table_rows(key, tname, spinner.set_progress, chain_option.text, 30)
+			content_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			content_label.text = data_handler.format_as_db_rows(result)
 		_:
 			_show_status("DataType not yet implemented")
 
@@ -256,7 +290,7 @@ func _on_confirm_upload_pressed() -> void:
 			update_bookmark_list()
 			_show_status("CodeIn Complete, Bookmark added: %s" % bname)
 		_:
-			push_error("Upload Type - Not Yet Implemented")
+			_show_status("Upload not supported for this DataType (DB types use separate create/writeRow flows)")
 	upload_name.text = ""
 	upload_pass.text = ""
 	upload_text_edit.text = ""
@@ -318,7 +352,7 @@ func _on_iqsdk_godot_exe_path_selected(path: String) -> void:
 
 
 func _on_data_type_option_item_selected(index: int) -> void:
-	godot_path_container.visible = (index == 4) #GodotPCK
+	godot_path_container.visible = (index == DataType.GODOT_PCK) #GodotPCK
 
 
 func _on_bookmarks_hide_button_toggled(toggled_on: bool) -> void:

@@ -254,3 +254,69 @@ func _format_ascii_art(text: String, desired_width: int) -> String:
 	return result
 
 #endregion
+
+#region DB (static DataType integration for new LocalServer DB endpoints)
+
+func format_as_db_list(result: Dictionary) -> String:
+	if result.is_empty():
+		return "Empty result or load failed."
+	var out: String = ""
+	var chain := str(result.get("chain", ""))
+	if chain:
+		out += "Chain: " + chain + "\n"
+	if result.has("creator"):
+		out += "Creator: " + str(result["creator"]) + "\n"
+	if result.has("rootPda"):
+		out += "Root PDA: " + str(result["rootPda"]) + "\n"
+	if result.has("dbRootId"):
+		out += "dbRootId: " + str(result["dbRootId"]) + "\n"
+
+	var table_list: Array = []
+	if result.has("tables"):
+		table_list = result["tables"] as Array
+	elif result.has("tableSeeds"):
+		table_list = result["tableSeeds"] as Array
+	elif result.has("globalTables"):
+		table_list = result["globalTables"] as Array
+
+	if not table_list.is_empty():
+		out += "\nTables (%d):\n" % table_list.size()
+		for entry in table_list:
+			if entry is Dictionary:
+				var name: String = str(entry.get("name", entry.get("seedHex", "?")))
+				var seed: String = str(entry.get("seedHex", entry.get("name", "")))
+				out += "  • " + name
+				if seed and seed != name:
+					out += " (seed: " + seed + ")"
+				out += "\n"
+			else:
+				out += "  • " + str(entry) + "\n"
+	else:
+		# Fallback for raw
+		out += "\n" + JSON.stringify(result, "\t")
+
+	return out
+
+func format_as_db_rows(result: Dictionary) -> String:
+	if result.is_empty():
+		return "Empty result or load failed."
+	var rows: Array = result.get("rows", []) as Array
+	var count: int = result.get("count", rows.size())
+	var out: String = "Rows: " + str(count) + "\n"
+	var chain := str(result.get("chain", ""))
+	if chain:
+		out += "Chain: " + chain + "  "
+	if result.has("tableName"):
+		out += "Table: " + str(result["tableName"]) + "  "
+	if result.has("tablePda"):
+		out += "PDA: " + str(result["tablePda"])
+	out += "\n\n"
+	if rows.is_empty():
+		out += "(no rows)\n"
+	else:
+		for i in range(rows.size()):
+			var row: Variant = rows[i]
+			out += "[%d] %s\n\n" % [i, JSON.stringify(row, "  ")]
+	return out
+
+#endregion

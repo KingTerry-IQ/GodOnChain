@@ -417,6 +417,138 @@ func _poll_job(job_id: String, progress_callback: Callable = Callable()) -> Vari
 	push_error("Job timed out after 30 minutes")
 	return null
 
+# ==================== DATABASE (new DataTypes support) ====================
+# Uses static return types (Dictionary / Array) per code style preference.
+# ID semantics for browser: table list always takes dbRootId as "ID".
+# Table rows: SOL "ID" = tablePda ; MON "ID" = "dbRootId/tableName" (slash composite) or pass table_name.
+
+func get_db_table_list(db_root_id: String, progress_callback: Callable = Callable(), chain: String = "SOL") -> Dictionary:
+	load_started.emit()
+	if db_root_id.is_empty():
+		push_error("dbRootId cannot be empty")
+		load_failed.emit()
+		return {}
+
+	var url: String = "http://localhost:6900/db/getTablelistFromRoot?dbRootId=" + db_root_id.uri_encode() + "&chain=" + chain.uri_encode()
+	var http_request: HTTPRequest = HTTPRequest.new()
+	add_child(http_request)
+
+	var error: Error = http_request.request(url)
+	if error != OK:
+		push_error("HTTP request failed for getTablelistFromRoot: %s" % error)
+		http_request.queue_free()
+		load_failed.emit()
+		return {}
+
+	var response = await http_request.request_completed
+	http_request.queue_free()
+
+	var result_code: int = response[0]
+	var response_code: int = response[1]
+	var body: PackedByteArray = response[3]
+
+	if result_code != HTTPRequest.RESULT_SUCCESS:
+		push_error("Request failed with result: %s" % result_code)
+		load_failed.emit()
+		return {}
+	if response_code != 200:
+		var error_msg = body.get_string_from_utf8()
+		push_error("Server error %d: %s" % [response_code, error_msg])
+		load_failed.emit()
+		return {}
+
+	var body_str = body.get_string_from_utf8()
+	var json = JSON.new()
+	if json.parse(body_str) != OK:
+		push_error("JSON parse error: %s" % json.get_error_message())
+		load_failed.emit()
+		return {}
+
+	var job_data: Dictionary = json.data
+	if not job_data.has("jobId"):
+		push_error("No jobId returned from server for getTablelistFromRoot")
+		load_failed.emit()
+		return {}
+
+	var job_id: String = job_data["jobId"]
+	var poll_result: Variant = await _poll_job(job_id, progress_callback)
+	if poll_result == null:
+		load_failed.emit()
+		return {}
+	load_complete.emit()
+	return poll_result if poll_result is Dictionary else {}
+
+func read_db_table_rows(db_root_or_pda: String, table_name: String = "", progress_callback: Callable = Callable(), chain: String = "SOL", limit: int = 20) -> Dictionary:
+	load_started.emit()
+	if db_root_or_pda.is_empty():
+		push_error("Identifier (tablePda or dbRootId) cannot be empty")
+		load_failed.emit()
+		return {}
+
+	var qparams: String = "chain=" + chain.uri_encode()
+	var norm := chain.to_lower()
+	if norm == "mon" or norm == "monad":
+		var root_id := db_root_or_pda
+		var t_name := table_name
+		if t_name.is_empty() and db_root_or_pda.contains("/"):
+			var parts := db_root_or_pda.split("/", true, 1)
+			root_id = parts[0]
+			t_name = parts[1]
+		if t_name.is_empty():
+			push_error("MON readTableRows requires tableName (use 'dbRoot/tableName' in ID field or pass as 2nd arg)")
+			load_failed.emit()
+			return {}
+		qparams += "&dbRootId=" + root_id.uri_encode() + "&tableName=" + t_name.uri_encode()
+	else:
+		qparams += "&tablePda=" + db_root_or_pda.uri_encode()
+	if limit > 0:
+		qparams += "&limit=" + str(limit)
+
+	var url: String = "http://localhost:6900/db/readTableRows?" + qparams
+	var http_request: HTTPRequest = HTTPRequest.new()
+	add_child(http_request)
+
+	var error: Error = http_request.request(url)
+	if error != OK:
+		push_error("HTTP request failed for readTableRows: %s" % error)
+		http_request.queue_free()
+		load_failed.emit()
+		return {}
+
+	var response = await http_request.request_completed
+	http_request.queue_free()
+
+	var result_code: int = response[0]
+	var response_code: int = response[1]
+	var body: PackedByteArray = response[3]
+
+	if result_code != HTTPRequest.RESULT_SUCCESS or response_code != 200:
+		var error_msg := body.get_string_from_utf8() if response_code != 200 else ("result=" + str(result_code))
+		push_error("Server error for readTableRows: %s" % error_msg)
+		load_failed.emit()
+		return {}
+
+	var body_str = body.get_string_from_utf8()
+	var json = JSON.new()
+	if json.parse(body_str) != OK:
+		push_error("JSON parse error (rows job start): %s" % json.get_error_message())
+		load_failed.emit()
+		return {}
+
+	var job_data: Dictionary = json.data
+	if not job_data.has("jobId"):
+		push_error("No jobId returned from server for readTableRows")
+		load_failed.emit()
+		return {}
+
+	var job_id: String = job_data["jobId"]
+	var poll_result: Variant = await _poll_job(job_id, progress_callback)
+	if poll_result == null:
+		load_failed.emit()
+		return {}
+	load_complete.emit()
+	return poll_result if poll_result is Dictionary else {}
+
 func _file_to_base64(file_path: String) -> String:
 	var file: FileAccess = FileAccess.open(file_path, FileAccess.READ)
 	if not file:
