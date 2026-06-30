@@ -229,6 +229,19 @@ size_flags_horizontal = 3
 button_pressed = true
 text = "  Use Local Downloaded App Cache"
 
+[node name="DBPagination" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer" unique_id=999000001]
+visible = false
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DBPagination" unique_id=999000002]
+layout_mode = 2
+text = "Before (cursor for older rows):"
+
+[node name="DBBeforeInput" type="LineEdit" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DBPagination" unique_id=999000003]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "tx signature (from previous page, optional for pagination)"
+
 [node name="LoadButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL" unique_id=934239533]
 custom_minimum_size = Vector2(65, 65)
 layout_mode = 2

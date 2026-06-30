@@ -281,19 +281,61 @@ func format_as_db_list(result: Dictionary) -> String:
 
 	if not table_list.is_empty():
 		out += "\nTables (%d):\n" % table_list.size()
-		for entry in table_list:
+		var hasPdas := result.has("tablePdas") and result["tablePdas"] is Array
+		var pdas: Array = []
+		if hasPdas:
+			pdas = result["tablePdas"] as Array
+		for i in range(table_list.size()):
+			var entry = table_list[i]
+			var display: String
 			if entry is Dictionary:
 				var name: String = str(entry.get("name", entry.get("seedHex", "?")))
 				var seed: String = str(entry.get("seedHex", entry.get("name", "")))
-				out += "  • " + name
+				display = name
 				if seed and seed != name:
-					out += " (seed: " + seed + ")"
-				out += "\n"
+					display += " (seed: " + seed + ")"
 			else:
-				out += "  • " + str(entry) + "\n"
+				display = str(entry)
+			# Try to decode hex seed for readability (e.g. "po" or "po/thread/xxx")
+			var decodedSeed := ""
+			if display.is_valid_hex_number() and display.length() % 2 == 0:
+				var bytes := PackedByteArray()
+				for j in range(0, display.length(), 2):
+					bytes.append( ("0x" + display.substr(j, 2)).hex_to_int() )
+				decodedSeed = bytes.get_string_from_utf8()
+			if decodedSeed:
+				display = decodedSeed + " (hex: " + display + ")"
+			if hasPdas and i < pdas.size():
+				display += "  [pda: " + str(pdas[i]) + "]"
+			out += "  • " + display + "\n"
 	else:
 		# Fallback for raw
 		out += "\n" + JSON.stringify(result, "\t")
+
+	# For SOL, also show globalTableSeeds / globalTablePdas if present (e.g. per-thread tables in BlockChan)
+	if result.has("globalTableSeeds") and result["globalTableSeeds"] is Array:
+		var gseeds: Array = result["globalTableSeeds"] as Array
+		var gpdas: Array = []
+		if result.has("globalTablePdas") and result["globalTablePdas"] is Array:
+			gpdas = result["globalTablePdas"] as Array
+		if not gseeds.is_empty():
+			out += "\nGlobal / all tables (%d):\n" % gseeds.size()
+			for i in range(min(gseeds.size(), 50)):  # cap display for very large roots
+				var s = str(gseeds[i])
+				# decode hex if possible
+				if s.is_valid_hex_number() and s.length() % 2 == 0:
+					var bytes := PackedByteArray()
+					for j in range(0, s.length(), 2):
+						bytes.append( ("0x" + s.substr(j, 2)).hex_to_int() )
+					var dec := bytes.get_string_from_utf8()
+					if dec:
+						s = dec + " (hex: " + s + ")"
+				var disp = s
+				if i < gpdas.size():
+					disp += "  [pda: " + str(gpdas[i]) + "]"
+				out += "  • " + disp + "\n"
+			if gseeds.size() > 50:
+				out += "  ... (more in full result)\n"
 
 	return out
 
@@ -316,7 +358,12 @@ func format_as_db_rows(result: Dictionary) -> String:
 	else:
 		for i in range(rows.size()):
 			var row: Variant = rows[i]
-			out += "[%d] %s\n\n" % [i, JSON.stringify(row, "  ")]
+			var row_dict: Dictionary = row if row is Dictionary else {}
+			var tx_sig: String = str(row_dict.get("__txSignature", row_dict.get("signature", row_dict.get("txHash", ""))))
+			var display_row := row_dict.duplicate()
+			if tx_sig:
+				display_row["__tx"] = tx_sig   # for easy copy as 'before' cursor
+			out += "[%d] %s\n\n" % [i, JSON.stringify(display_row, "  ")]
 	return out
 
 #endregion

@@ -56,6 +56,9 @@ enum DataType {
 @onready var godot_path_label: Label = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath/GodotPath
 @onready var godot_use_local_cache_check: CheckBox = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath/LocalCacheCheckbox
 
+@onready var db_pagination_container: HBoxContainer = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DBPagination
+@onready var db_before_input: LineEdit = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DBPagination/DBBeforeInput
+
 var bookmarks: Array[Variant] = []
 
 
@@ -111,16 +114,33 @@ func _on_load_button_pressed() -> void:
 			content_label.text = data_handler.format_as_db_list(result)
 		DataType.DB_TABLE_ROWS:
 			_show_status("Loading DB table rows for %s on %s" % [id, chain_option.text])
-			content_label.text = ""
 			var key := id
 			var tname := ""
 			if chain_option.text.to_lower().begins_with("mon") and key.contains("/"):
 				var parts := key.split("/", true, 1)
 				key = parts[0]
 				tname = parts[1]
-			var result: Dictionary = await iq_sdk.read_db_table_rows(key, tname, spinner.set_progress, chain_option.text, 30)
+			var before := db_before_input.text.strip_edges()
+			var result: Dictionary = await iq_sdk.read_db_table_rows(key, tname, spinner.set_progress, chain_option.text, 30, before)
 			content_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			content_label.text = data_handler.format_as_db_rows(result)
+			var formatted := data_handler.format_as_db_rows(result)
+			if before.is_empty():
+				content_label.text = formatted
+			else:
+				content_label.text += "\n\n--- older rows (before " + before.substr(0, 12) + "...) ---\n\n" + formatted
+			# Auto-advance the before cursor to the oldest row in this page for easy "load more"
+			var rows_arr: Array = result.get("rows", [])
+			if not rows_arr.is_empty():
+				var last = rows_arr.back()
+				var last_row: Dictionary = last if last is Dictionary else {}
+				var next_before: String = ""
+				if last_row:
+					next_before = str(last_row.get("__txSignature", last_row.get("signature", last_row.get("txHash", ""))))
+				if not next_before.is_empty() and next_before != before:
+					db_before_input.text = next_before
+					_show_status("Page loaded. 'Before' cursor auto-set for older rows. Fill/clear it and Go again to paginate.")
+				elif rows_arr.is_empty() or formatted.strip_edges().is_empty():
+					_show_status("No additional rows found at this cursor (end of available data or all skipped non-row txs).")
 		_:
 			_show_status("DataType not yet implemented")
 
@@ -196,6 +216,8 @@ func _on_bookmark_list_item_selected(index: int) -> void:
 		chain_option.select(bm.chain)
 		_on_encryption_option_item_selected(bm.encrypt)
 		_on_data_type_option_item_selected(bm.type)
+		if bm.type == DataType.DB_TABLE_ROWS:
+			db_before_input.text = ""  # before is session-only, not bookmarked
 
 
 func _on_delete_bookmark_button_pressed() -> void:
@@ -353,6 +375,9 @@ func _on_iqsdk_godot_exe_path_selected(path: String) -> void:
 
 func _on_data_type_option_item_selected(index: int) -> void:
 	godot_path_container.visible = (index == DataType.GODOT_PCK) #GodotPCK
+	db_pagination_container.visible = (index == DataType.DB_TABLE_ROWS)
+	if index != DataType.DB_TABLE_ROWS:
+		db_before_input.text = ""
 
 
 func _on_bookmarks_hide_button_toggled(toggled_on: bool) -> void:

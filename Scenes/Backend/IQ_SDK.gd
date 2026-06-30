@@ -478,7 +478,7 @@ func get_db_table_list(db_root_id: String, progress_callback: Callable = Callabl
 	load_complete.emit()
 	return poll_result if poll_result is Dictionary else {}
 
-func read_db_table_rows(db_root_or_pda: String, table_name: String = "", progress_callback: Callable = Callable(), chain: String = "SOL", limit: int = 20) -> Dictionary:
+func read_db_table_rows(db_root_or_pda: String, table_name: String = "", progress_callback: Callable = Callable(), chain: String = "SOL", limit: int = 20, before: String = "") -> Dictionary:
 	load_started.emit()
 	if db_root_or_pda.is_empty():
 		push_error("Identifier (tablePda or dbRootId) cannot be empty")
@@ -503,6 +503,8 @@ func read_db_table_rows(db_root_or_pda: String, table_name: String = "", progres
 		qparams += "&tablePda=" + db_root_or_pda.uri_encode()
 	if limit > 0:
 		qparams += "&limit=" + str(limit)
+	if not before.is_empty():
+		qparams += "&before=" + before.uri_encode()
 
 	var url: String = "http://localhost:6900/db/readTableRows?" + qparams
 	var http_request: HTTPRequest = HTTPRequest.new()
