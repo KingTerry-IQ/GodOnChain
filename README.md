@@ -61,6 +61,10 @@ Export presets are configured for:
 - Windows (`.exe`)
 - Linux (`.x86_64`)
 
+## 🎨 Icon & Visual Identity
+
+The app icon blends Godot's distinctive three-lobe abstract mascot, blockchain chain links ("OnChain"), and a glowing cross (TempleOS / divine "God" inspiration) in a bold neon green-on-black terminal aesthetic that matches the UI theme and the project's chaotic based energy.
+
 ## 🗂️ Project Layout
 
 ```

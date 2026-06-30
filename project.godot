@@ -18,7 +18,7 @@ config/name="GodOnChain"
 config/tags=PackedStringArray("real")
 run/main_scene="uid://c7qba01j8nb2h"
 config/features=PackedStringArray("4.6", "GL Compatibility")
-config/icon="res://icon.svg"
+config/icon="res://Assets/icon.png"
 
 [editor_plugins]
 
