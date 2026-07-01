@@ -289,11 +289,11 @@ func format_as_db_list(result: Dictionary) -> String:
 			var entry = table_list[i]
 			var display: String
 			if entry is Dictionary:
-				var name: String = str(entry.get("name", entry.get("seedHex", "?")))
-				var seed: String = str(entry.get("seedHex", entry.get("name", "")))
-				display = name
-				if seed and seed != name:
-					display += " (seed: " + seed + ")"
+				var entry_name: String = str(entry.get("name", entry.get("seedHex", "?")))
+				var entry_seed: String = str(entry.get("seedHex", entry.get("name", "")))
+				display = entry_name
+				if entry_seed and entry_seed != entry_name:
+					display += " (seed: " + entry_seed + ")"
 			else:
 				display = str(entry)
 			# Try to decode hex seed for readability (e.g. "po" or "po/thread/xxx")

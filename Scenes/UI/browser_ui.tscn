@@ -5,15 +5,18 @@
 [ext_resource type="PackedScene" uid="uid://dayyi8xv86gsi" path="res://Scenes/UI/spinner.tscn" id="3_2ryth"]
 [ext_resource type="PackedScene" uid="uid://b5ireg52h0sme" path="res://Scenes/Backend/iqsdk.tscn" id="4_uey33"]
 [ext_resource type="PackedScene" uid="uid://dugrnyolfwrmh" path="res://Scenes/Backend/data_handler.tscn" id="5_f8u0t"]
+[ext_resource type="Texture2D" uid="uid://dp8pvvkfill2m" path="res://Assets/icon.png" id="icon_tex"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_guae4"]
-bg_color = Color(0.05882353, 0.05882353, 0.05882353, 1)
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
+bg_color = Color(0.02, 0.05, 0.02, 1)
+border_width_bottom = 2
+border_color = Color(0, 0.9, 0, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_3t3nw"]
 bg_color = Color(0, 0, 0, 1)
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_f8u0t"]
-bg_color = Color(0.26666668, 0.26666668, 0.26666668, 1)
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_guae4"]
+bg_color = Color(0.05882353, 0.05882353, 0.05882353, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_urnrq"]
 bg_color = Color(0, 0, 0, 1)
@@ -46,22 +49,76 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 10
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
 metadata/_edit_lock_ = true
 
-[node name="HBoxContainer" type="HBoxContainer" parent="Panel/MarginContainer" unique_id=1407764229]
+[node name="MainVBox" type="VBoxContainer" parent="Panel/MarginContainer" unique_id=1407764228]
 layout_mode = 2
+theme_override_constants/separation = 6
 
-[node name="Bookmarks" type="Panel" parent="Panel/MarginContainer/HBoxContainer" unique_id=1123423996]
-custom_minimum_size = Vector2(200, 0)
+[node name="Header" type="Panel" parent="Panel/MarginContainer/MainVBox" unique_id=1407764230]
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_header")
+
+[node name="HBox" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox/Header" unique_id=1407764231]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 12
+
+[node name="Icon" type="TextureRect" parent="Panel/MarginContainer/MainVBox/Header/HBox" unique_id=1407764232]
+custom_minimum_size = Vector2(36, 36)
+layout_mode = 2
+texture = ExtResource("icon_tex")
+expand_mode = 2
+stretch_mode = 5
+
+[node name="TitleBox" type="VBoxContainer" parent="Panel/MarginContainer/MainVBox/Header/HBox" unique_id=1407764233]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="Title" type="Label" parent="Panel/MarginContainer/MainVBox/Header/HBox/TitleBox" unique_id=1407764234]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 0.2, 1)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 26
+text = "GOD ON CHAIN"
+uppercase = true
+
+[node name="Subtitle" type="Label" parent="Panel/MarginContainer/MainVBox/Header/HBox/TitleBox" unique_id=1407764235]
+modulate = Color(0.6, 0.9, 0.6, 1)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "INSCRIBE • RETRIEVE • EXECUTE • ON-CHAIN INSCRIPTIONS POWERED BY $IQ"
+
+[node name="HeaderActions" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox/Header/HBox" unique_id=1407764236]
 layout_mode = 2
 size_flags_horizontal = 0
-theme_override_styles/panel = SubResource("StyleBoxFlat_guae4")
+theme_override_constants/separation = 6
 
-[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/HBoxContainer/Bookmarks" unique_id=2051071102]
+[node name="ClearOutputButton" type="Button" parent="Panel/MarginContainer/MainVBox/Header/HBox/HeaderActions" unique_id=1407764237]
+layout_mode = 2
+text = "Clear"
+
+[node name="MainHBox" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox" unique_id=1407764229]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="Bookmarks" type="Panel" parent="Panel/MarginContainer/MainVBox/MainHBox" unique_id=1123423996]
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks" unique_id=2051071102]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -69,7 +126,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="MarginContainer" type="MarginContainer" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer" unique_id=1689989643]
+[node name="MarginContainer" type="MarginContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer" unique_id=1689989643]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -78,66 +135,92 @@ theme_override_constants/margin_top = 5
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 5
 
-[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer" unique_id=778344401]
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer" unique_id=778344401]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="UploadButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=1756289171]
+[node name="BookmarksTitle" type="Label" parent="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=778344402]
+modulate = Color(0.5, 0.95, 0.5, 1)
 layout_mode = 2
-text = "Code In!!!"
+theme_override_font_sizes/font_size = 13
+text = "[BOOKMARKS]"
+horizontal_alignment = 1
 
-[node name="HSeparator" type="HSeparator" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=1750936203]
+[node name="UploadButton" type="Button" parent="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=1756289171]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "⚡ CODE IN"
+
+[node name="HSeparator" type="HSeparator" parent="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=1750936203]
 layout_mode = 2
 
-[node name="BookmarkList" type="ItemList" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=834878003]
+[node name="NewFolderButton" type="Button" parent="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=834878010]
+layout_mode = 2
+text = "＋ New Folder"
+
+[node name="HSeparator2" type="HSeparator" parent="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=834878011]
+layout_mode = 2
+
+[node name="BookmarkTree" type="Tree" parent="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=834878003]
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_constants/item_margin = 8
+hide_root = true
 
-[node name="DeleteBookmarkButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=120677721]
+[node name="DeleteBookmarkButton" type="Button" parent="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=120677721]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 8
 theme_override_styles/normal = SubResource("StyleBoxFlat_3t3nw")
+theme_override_styles/disabled = SubResource("StyleBoxFlat_guae4")
 disabled = true
-text = "Delete Bookmark"
+text = "🗑 Delete"
 
-[node name="AddBookmarkButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=1361672419]
+[node name="MoveBookmarkButton" type="Button" parent="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=120677722]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 8
-text = "Add Bookmark"
+theme_override_styles/disabled = SubResource("StyleBoxFlat_guae4")
+disabled = true
+text = "➡ Move to Folder"
 
-[node name="BookmarksHideButton" type="Button" parent="Panel/MarginContainer/HBoxContainer" unique_id=1283020683]
+[node name="AddBookmarkButton" type="Button" parent="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer" unique_id=1361672419]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 8
+text = "★ Add Bookmark"
+
+[node name="BookmarksHideButton" type="Button" parent="Panel/MarginContainer/MainVBox/MainHBox" unique_id=1283020683]
 layout_mode = 2
 size_flags_horizontal = 8
 toggle_mode = true
-text = "<-"
+text = "⟨"
 
-[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer" unique_id=915258369]
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/MainVBox/MainHBox" unique_id=915258369]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="URL" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer" unique_id=1906192062]
+[node name="URL" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer" unique_id=1906192062]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL" unique_id=836955861]
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL" unique_id=836955861]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="TransactionId" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer" unique_id=1095978374]
+[node name="TransactionId" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer" unique_id=1095978374]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId" unique_id=1208781501]
+[node name="Label" type="Label" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/TransactionId" unique_id=1208781501]
 layout_mode = 2
 text = "Id:"
 
-[node name="IDInput" type="LineEdit" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId" unique_id=1863227433]
+[node name="IDInput" type="LineEdit" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/TransactionId" unique_id=1863227433]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ChainOption" type="OptionButton" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId" unique_id=552436424]
+[node name="ChainOption" type="OptionButton" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/TransactionId" unique_id=552436424]
 custom_minimum_size = Vector2(50, 0)
 layout_mode = 2
 theme = ExtResource("1_ncg8e")
@@ -152,10 +235,10 @@ popup/item_2/text = "ETH"
 popup/item_2/id = 2
 popup/item_2/disabled = true
 
-[node name="EncryptionPass" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer" unique_id=783442675]
+[node name="EncryptionPass" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer" unique_id=783442675]
 layout_mode = 2
 
-[node name="EncryptionOption" type="OptionButton" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass" unique_id=1084419173]
+[node name="EncryptionOption" type="OptionButton" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/EncryptionPass" unique_id=1084419173]
 layout_mode = 2
 size_flags_horizontal = 3
 alignment = 1
@@ -168,21 +251,21 @@ popup/item_1/id = 1
 popup/item_2/text = "HanLock"
 popup/item_2/id = 2
 
-[node name="PassInput" type="LineEdit" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass" unique_id=1627006626]
+[node name="PassInput" type="LineEdit" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/EncryptionPass" unique_id=1627006626]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "Decryption key"
 secret = true
 
-[node name="DataType" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer" unique_id=310737265]
+[node name="DataType" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer" unique_id=310737265]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DataType" unique_id=243464652]
+[node name="Label" type="Label" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/DataType" unique_id=243464652]
 layout_mode = 2
 text = "Data Type:"
 
-[node name="DataTypeOption" type="OptionButton" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DataType" unique_id=187357151]
+[node name="DataTypeOption" type="OptionButton" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/DataType" unique_id=187357151]
 layout_mode = 2
 size_flags_horizontal = 3
 alignment = 1
@@ -203,68 +286,82 @@ popup/item_5/id = 5
 popup/item_6/text = "DB Table Rows"
 popup/item_6/id = 6
 
-[node name="GodotPath" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer" unique_id=2032484617]
+[node name="GodotPath" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer" unique_id=2032484617]
 visible = false
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=257592550]
+[node name="Label" type="Label" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=257592550]
 layout_mode = 2
 text = "Godot Path:"
 
-[node name="GodotPath" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=1533108100]
+[node name="GodotPath" type="Label" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=1533108100]
 layout_mode = 2
 text = "[Not Yet Selected]"
 
-[node name="SelectGodotPathButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=1959957553]
+[node name="SelectGodotPathButton" type="Button" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=1959957553]
 custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
 text = "Select"
 
-[node name="VSeparator" type="VSeparator" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=81544841]
+[node name="VSeparator" type="VSeparator" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=81544841]
 layout_mode = 2
 
-[node name="LocalCacheCheckbox" type="CheckBox" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=2039442385]
+[node name="LocalCacheCheckbox" type="CheckBox" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/GodotPath" unique_id=2039442385]
 layout_mode = 2
 size_flags_horizontal = 3
 button_pressed = true
-text = "  Use Local Downloaded App Cache"
+text = " Use Local Downloaded App Cache"
 
-[node name="DBPagination" type="HBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer" unique_id=999000001]
+[node name="DBPagination" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer" unique_id=999000001]
 visible = false
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DBPagination" unique_id=999000002]
+[node name="Label" type="Label" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/DBPagination" unique_id=999000002]
 layout_mode = 2
 text = "Before (cursor for older rows):"
 
-[node name="DBBeforeInput" type="LineEdit" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DBPagination" unique_id=999000003]
+[node name="DBBeforeInput" type="LineEdit" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/DBPagination" unique_id=999000003]
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "tx signature (from previous page, optional for pagination)"
 
-[node name="LoadButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL" unique_id=934239533]
+[node name="LoadButton" type="Button" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL" unique_id=934239533]
 custom_minimum_size = Vector2(65, 65)
 layout_mode = 2
 text = "Go"
 
-[node name="URLHideButton" type="Button" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer" unique_id=1418346289]
+[node name="URLHideButton" type="Button" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer" unique_id=1418346289]
 layout_mode = 2
 toggle_mode = true
-text = "^"
+text = "▴"
 
-[node name="Content" type="MarginContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer" unique_id=1983908484]
+[node name="Content" type="MarginContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer" unique_id=1983908484]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/Content" unique_id=1146756571]
+[node name="ContentVBox" type="VBoxContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/Content" unique_id=1146756571]
 layout_mode = 2
 
-[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/Content/VBoxContainer" unique_id=1978243192]
+[node name="ContentHeader" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/Content/ContentVBox" unique_id=1146756572]
+layout_mode = 2
+
+[node name="ContentTitle" type="Label" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/Content/ContentVBox/ContentHeader" unique_id=1146756573]
+modulate = Color(0.7, 1, 0.7, 0.9)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 14
+text = "— VIEWER —"
+
+[node name="CopyContentButton" type="Button" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/Content/ContentVBox/ContentHeader" unique_id=1146756574]
+layout_mode = 2
+text = "⎘ Copy"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/Content/ContentVBox" unique_id=1978243192]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="ContentLabel" type="RichTextLabel" parent="Panel/MarginContainer/HBoxContainer/VBoxContainer/Content/VBoxContainer/ScrollContainer" unique_id=806231229]
+[node name="ContentLabel" type="RichTextLabel" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/Content/ContentVBox/ScrollContainer" unique_id=806231229]
 custom_minimum_size = Vector2(900, 400)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -285,7 +382,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_f8u0t")
 
 [node name="MarginContainer" type="MarginContainer" parent="AddBookmark" unique_id=1593850197]
 layout_mode = 1
@@ -317,6 +413,18 @@ text = "Name:"
 [node name="Name" type="LineEdit" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Name" unique_id=203153404]
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="Folder" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer" unique_id=2129250806]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Folder" unique_id=2129250807]
+layout_mode = 2
+text = "Folder:"
+
+[node name="FolderOptionBookmark" type="OptionButton" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Folder" unique_id=2129250808]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
 
 [node name="TransactionId" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer" unique_id=2129250805]
 layout_mode = 2
@@ -422,7 +530,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_f8u0t")
 
 [node name="MarginContainer" type="MarginContainer" parent="Upload" unique_id=1223574980]
 layout_mode = 1
@@ -478,6 +585,18 @@ popup/item_1/id = 1
 popup/item_2/text = "ETH"
 popup/item_2/id = 2
 popup/item_2/disabled = true
+
+[node name="FolderUpload" type="HBoxContainer" parent="Upload/MarginContainer/VBoxContainer" unique_id=467777404]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Upload/MarginContainer/VBoxContainer/FolderUpload" unique_id=467777406]
+layout_mode = 2
+text = "Folder:"
+
+[node name="FolderOptionUpload" type="OptionButton" parent="Upload/MarginContainer/VBoxContainer/FolderUpload" unique_id=467777407]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
 
 [node name="Passphrase" type="HBoxContainer" parent="Upload/MarginContainer/VBoxContainer" unique_id=467777405]
 layout_mode = 2
@@ -570,6 +689,140 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Confirm"
 
+[node name="FolderPrompt" type="Panel" parent="." unique_id=999001001]
+visible = false
+custom_minimum_size = Vector2(400, 140)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -70.0
+offset_right = 200.0
+offset_bottom = 70.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="FolderPrompt" unique_id=999001002]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 15
+theme_override_constants/margin_top = 15
+theme_override_constants/margin_right = 15
+theme_override_constants/margin_bottom = 15
+
+[node name="VBox" type="VBoxContainer" parent="FolderPrompt/MarginContainer" unique_id=999001003]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="FolderPrompt/MarginContainer/VBox" unique_id=999001004]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "New Folder"
+horizontal_alignment = 1
+
+[node name="NameRow" type="HBoxContainer" parent="FolderPrompt/MarginContainer/VBox" unique_id=999001005]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="FolderPrompt/MarginContainer/VBox/NameRow" unique_id=999001006]
+layout_mode = 2
+text = "Name:"
+
+[node name="FolderName" type="LineEdit" parent="FolderPrompt/MarginContainer/VBox/NameRow" unique_id=999001007]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "e.g. Solana Inscriptions"
+
+[node name="Buttons" type="HBoxContainer" parent="FolderPrompt/MarginContainer/VBox" unique_id=999001008]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CancelFolder" type="Button" parent="FolderPrompt/MarginContainer/VBox/Buttons" unique_id=999001009]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_urnrq")
+text = "Cancel"
+
+[node name="ConfirmFolder" type="Button" parent="FolderPrompt/MarginContainer/VBox/Buttons" unique_id=999001010]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Create Folder"
+
+[node name="MovePrompt" type="Panel" parent="." unique_id=999002001]
+visible = false
+custom_minimum_size = Vector2(480, 180)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -240.0
+offset_top = -90.0
+offset_right = 240.0
+offset_bottom = 90.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="MovePrompt" unique_id=999002002]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 15
+theme_override_constants/margin_top = 15
+theme_override_constants/margin_right = 15
+theme_override_constants/margin_bottom = 15
+
+[node name="VBox" type="VBoxContainer" parent="MovePrompt/MarginContainer" unique_id=999002003]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="MovePrompt/MarginContainer/VBox" unique_id=999002004]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Move Bookmark to Folder"
+horizontal_alignment = 1
+
+[node name="CurrentLabel" type="Label" parent="MovePrompt/MarginContainer/VBox" unique_id=999002005]
+layout_mode = 2
+text = "Selected: "
+
+[node name="TargetRow" type="HBoxContainer" parent="MovePrompt/MarginContainer/VBox" unique_id=999002006]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="MovePrompt/MarginContainer/VBox/TargetRow" unique_id=999002007]
+layout_mode = 2
+text = "Target Folder:"
+
+[node name="TargetFolderOption" type="OptionButton" parent="MovePrompt/MarginContainer/VBox/TargetRow" unique_id=999002008]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+
+[node name="Buttons" type="HBoxContainer" parent="MovePrompt/MarginContainer/VBox" unique_id=999002009]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CancelMove" type="Button" parent="MovePrompt/MarginContainer/VBox/Buttons" unique_id=999002010]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_urnrq")
+text = "Cancel"
+
+[node name="ConfirmMove" type="Button" parent="MovePrompt/MarginContainer/VBox/Buttons" unique_id=999002011]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Move"
+
 [node name="StatusLabel" type="Label" parent="." unique_id=707990470]
 visible = false
 layout_mode = 1
@@ -577,10 +830,14 @@ anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -22.0
+offset_left = 4.0
+offset_top = -26.0
+offset_right = -4.0
 grow_horizontal = 2
 grow_vertical = 0
 size_flags_vertical = 8
+theme_override_colors/font_color = Color(0.6, 1, 0.6, 1)
+theme_override_font_sizes/font_size = 14
 text = "Ready"
 horizontal_alignment = 1
 
@@ -588,16 +845,20 @@ horizontal_alignment = 1
 
 [node name="DataHandler" parent="." unique_id=2101791151 instance=ExtResource("5_f8u0t")]
 
-[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/UploadButton" to="." method="_on_upload_button_pressed"]
-[connection signal="item_selected" from="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/BookmarkList" to="." method="_on_bookmark_list_item_selected"]
-[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/DeleteBookmarkButton" to="." method="_on_delete_bookmark_button_pressed"]
-[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/AddBookmarkButton" to="." method="_on_add_bookmark_button_pressed"]
-[connection signal="toggled" from="Panel/MarginContainer/HBoxContainer/BookmarksHideButton" to="." method="_on_bookmarks_hide_button_toggled"]
-[connection signal="item_selected" from="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass/EncryptionOption" to="." method="_on_encryption_option_item_selected"]
-[connection signal="item_selected" from="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DataType/DataTypeOption" to="." method="_on_data_type_option_item_selected"]
-[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath/SelectGodotPathButton" to="." method="_on_select_godot_path_button_pressed"]
-[connection signal="pressed" from="Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/LoadButton" to="." method="_on_load_button_pressed"]
-[connection signal="toggled" from="Panel/MarginContainer/HBoxContainer/VBoxContainer/URLHideButton" to="." method="_on_url_hide_button_toggled"]
+[connection signal="pressed" from="Panel/MarginContainer/MainVBox/Header/HBox/HeaderActions/ClearOutputButton" to="." method="_on_clear_output_pressed"]
+[connection signal="pressed" from="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/UploadButton" to="." method="_on_upload_button_pressed"]
+[connection signal="pressed" from="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/NewFolderButton" to="." method="_on_new_folder_button_pressed"]
+[connection signal="item_selected" from="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/BookmarkTree" to="." method="_on_bookmark_tree_item_selected"]
+[connection signal="pressed" from="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/DeleteBookmarkButton" to="." method="_on_delete_bookmark_button_pressed"]
+[connection signal="pressed" from="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/MoveBookmarkButton" to="." method="_on_move_bookmark_button_pressed"]
+[connection signal="pressed" from="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/AddBookmarkButton" to="." method="_on_add_bookmark_button_pressed"]
+[connection signal="toggled" from="Panel/MarginContainer/MainVBox/MainHBox/BookmarksHideButton" to="." method="_on_bookmarks_hide_button_toggled"]
+[connection signal="item_selected" from="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/EncryptionPass/EncryptionOption" to="." method="_on_encryption_option_item_selected"]
+[connection signal="item_selected" from="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/DataType/DataTypeOption" to="." method="_on_data_type_option_item_selected"]
+[connection signal="pressed" from="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/GodotPath/SelectGodotPathButton" to="." method="_on_select_godot_path_button_pressed"]
+[connection signal="pressed" from="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/LoadButton" to="." method="_on_load_button_pressed"]
+[connection signal="toggled" from="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URLHideButton" to="." method="_on_url_hide_button_toggled"]
+[connection signal="pressed" from="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/Content/ContentVBox/ContentHeader/CopyContentButton" to="." method="_on_copy_content_pressed"]
 [connection signal="item_selected" from="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Passphrase/EncryptionOptionBookmark" to="." method="_on_encryption_option_bookmark_item_selected"]
 [connection signal="pressed" from="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/ConfirmCancel/CancelAddBookmarkButton" to="." method="_on_cancel_add_bookmark_button_pressed"]
 [connection signal="pressed" from="AddBookmark/MarginContainer/CenterContainer/VBoxContainer/ConfirmCancel/ConfirmAddBookmarkButton" to="." method="_on_confirm_add_bookmark_button_pressed"]
@@ -607,6 +868,10 @@ horizontal_alignment = 1
 [connection signal="pressed" from="Upload/MarginContainer/VBoxContainer/FileSelectContainer/FileSelector" to="." method="_on_file_selector_pressed"]
 [connection signal="pressed" from="Upload/MarginContainer/VBoxContainer/ConfirmCancel/CancelUpload" to="." method="_on_cancel_upload_pressed"]
 [connection signal="pressed" from="Upload/MarginContainer/VBoxContainer/ConfirmCancel/ConfirmUpload" to="." method="_on_confirm_upload_pressed"]
+[connection signal="pressed" from="FolderPrompt/MarginContainer/VBox/Buttons/CancelFolder" to="." method="_on_cancel_folder_pressed"]
+[connection signal="pressed" from="FolderPrompt/MarginContainer/VBox/Buttons/ConfirmFolder" to="." method="_on_confirm_folder_pressed"]
+[connection signal="pressed" from="MovePrompt/MarginContainer/VBox/Buttons/CancelMove" to="." method="_on_cancel_move_pressed"]
+[connection signal="pressed" from="MovePrompt/MarginContainer/VBox/Buttons/ConfirmMove" to="." method="_on_confirm_move_pressed"]
 [connection signal="file_upload_path_selected" from="IQSDK" to="." method="_on_iqsdk_file_upload_path_selected"]
 [connection signal="godot_exe_path_selected" from="IQSDK" to="." method="_on_iqsdk_godot_exe_path_selected"]
 [connection signal="load_complete" from="IQSDK" to="." method="_on_iqsdk_load_complete"]

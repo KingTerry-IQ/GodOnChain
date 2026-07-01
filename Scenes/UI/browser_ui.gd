@@ -20,17 +20,19 @@ enum DataType {
 	DB_TABLE_ROWS = 6,
 }
 
-@onready var id_input: LineEdit = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId/IDInput
-@onready var encrypt_option: OptionButton = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass/EncryptionOption
-@onready var pass_input: LineEdit = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/EncryptionPass/PassInput
-@onready var bookmark_list: ItemList = $Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/BookmarkList
-@onready var content_label: RichTextLabel = $Panel/MarginContainer/HBoxContainer/VBoxContainer/Content/VBoxContainer/ScrollContainer/ContentLabel
+@onready var id_input: LineEdit = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/TransactionId/IDInput
+@onready var encrypt_option: OptionButton = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/EncryptionPass/EncryptionOption
+@onready var pass_input: LineEdit = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/EncryptionPass/PassInput
+@onready var bookmark_tree: Tree = $Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/BookmarkTree
+@onready var move_bookmark_button: Button = $Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/MoveBookmarkButton
+@onready var content_title: Label = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/Content/ContentVBox/ContentHeader/ContentTitle
+@onready var content_label: RichTextLabel = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/Content/ContentVBox/ScrollContainer/ContentLabel
 @onready var status_label: Label = $StatusLabel
-@onready var data_type_option: OptionButton = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DataType/DataTypeOption
-@onready var chain_option: OptionButton = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/TransactionId/ChainOption
+@onready var data_type_option: OptionButton = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/DataType/DataTypeOption
+@onready var chain_option: OptionButton = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/TransactionId/ChainOption
 
-@onready var bookmarks_panel: Panel = $Panel/MarginContainer/HBoxContainer/Bookmarks
-@onready var url_panel: HBoxContainer = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL
+@onready var bookmarks_panel: Panel = $Panel/MarginContainer/MainVBox/MainHBox/Bookmarks
+@onready var url_panel: HBoxContainer = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL
 
 @onready var add_bookmark_panel: Panel = $AddBookmark
 @onready var add_bookmark_name: LineEdit = $AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Name/Name
@@ -38,8 +40,19 @@ enum DataType {
 @onready var add_bookmark_encrypt: OptionButton = $AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Passphrase/EncryptionOptionBookmark
 @onready var add_bookmark_pass: LineEdit = $AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Passphrase/Passphrase
 @onready var add_bookmark_data_type: OptionButton = $AddBookmark/MarginContainer/CenterContainer/VBoxContainer/DataType/DataTypeOptionBookmark
-@onready var delete_bookmark_button: Button = $Panel/MarginContainer/HBoxContainer/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/DeleteBookmarkButton
+@onready var add_bookmark_folder_option: OptionButton = $AddBookmark/MarginContainer/CenterContainer/VBoxContainer/Folder/FolderOptionBookmark
+@onready var delete_bookmark_button: Button = $Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/DeleteBookmarkButton
 @onready var add_bookmark_chain_option: OptionButton = $AddBookmark/MarginContainer/CenterContainer/VBoxContainer/TransactionId/ChainOption
+
+@onready var folder_prompt: Panel = $FolderPrompt
+@onready var folder_prompt_name: LineEdit = $FolderPrompt/MarginContainer/VBox/NameRow/FolderName
+
+@onready var move_prompt: Panel = $MovePrompt
+@onready var move_prompt_current: Label = $MovePrompt/MarginContainer/VBox/CurrentLabel
+@onready var move_prompt_target: OptionButton = $MovePrompt/MarginContainer/VBox/TargetRow/TargetFolderOption
+
+@onready var upload_folder_option: OptionButton = $Upload/MarginContainer/VBoxContainer/FolderUpload/FolderOptionUpload
+
 
 @onready var upload_panel: Panel = $Upload
 @onready var upload_name: LineEdit = $Upload/MarginContainer/VBoxContainer/Name/Name
@@ -52,12 +65,12 @@ enum DataType {
 @onready var upload_cost_label: Label = $Upload/MarginContainer/VBoxContainer/CostLabel
 @onready var upload_chain_option: OptionButton = $Upload/MarginContainer/VBoxContainer/Name/ChainOptionUpload
 
-@onready var godot_path_container: HBoxContainer = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath
-@onready var godot_path_label: Label = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath/GodotPath
-@onready var godot_use_local_cache_check: CheckBox = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/GodotPath/LocalCacheCheckbox
+@onready var godot_path_container: HBoxContainer = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/GodotPath
+@onready var godot_path_label: Label = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/GodotPath/GodotPath
+@onready var godot_use_local_cache_check: CheckBox = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/GodotPath/LocalCacheCheckbox
 
-@onready var db_pagination_container: HBoxContainer = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DBPagination
-@onready var db_before_input: LineEdit = $Panel/MarginContainer/HBoxContainer/VBoxContainer/URL/VBoxContainer/DBPagination/DBBeforeInput
+@onready var db_pagination_container: HBoxContainer = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/DBPagination
+@onready var db_before_input: LineEdit = $Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer/DBPagination/DBBeforeInput
 
 var bookmarks: Array[Variant] = []
 
@@ -69,7 +82,17 @@ func _ready() -> void:
 	else:
 		options = Options.new()
 	load_bookmarks()
-	update_bookmark_list()
+	# Migrate old flat bookmarks if they lack structure (they work as root leaves already)
+	if bookmarks == null or not bookmarks is Array:
+		bookmarks = []
+	update_bookmark_tree()
+	# Note: most new buttons/prompts are connected via scene .tscn signals now.
+	_set_content_title("— VIEWER —")
+
+
+func _set_content_title(text: String) -> void:
+	if content_title:
+		content_title.text = text
 
 
 func _on_load_button_pressed() -> void:
@@ -78,6 +101,7 @@ func _on_load_button_pressed() -> void:
 	if id.is_empty():
 		_show_status("TransactionID cannot be empty:")
 		return
+	_set_content_title("Loading: " + id.substr(0, 16) + ( "..." if id.length() > 16 else "" ))
 		
 	match data_type_option.get_selected_id():
 		DataType.METADATA:
@@ -156,9 +180,10 @@ func load_bookmarks() -> void:
 		var json = JSON.new()
 		var parse_result = json.parse(json_str)
 		if parse_result == OK:
-			bookmarks = json.data
+			bookmarks = json.data if json.data is Array else []
 		else:
 			print("Error parsing bookmarks: ", json.get_error_message())
+			bookmarks = []
 
 
 func save_bookmarks() -> void:
@@ -169,13 +194,30 @@ func save_bookmarks() -> void:
 		file.close()
 
 
-func update_bookmark_list() -> void:
-	bookmark_list.clear()
-	for bm in bookmarks:
-		bookmark_list.add_item(bm.name)
+func update_bookmark_tree() -> void:
+	bookmark_tree.clear()
+	var root := bookmark_tree.create_item()
+	root.set_text(0, "root")
+	_populate_tree(root, bookmarks)
+
+func _populate_tree(parent: TreeItem, items: Array) -> void:
+	for item in items:
+		var ti := bookmark_tree.create_item(parent)
+		var is_folder = item.get("is_folder", false)
+		var display_name = item.get("name", "unnamed")
+		if is_folder:
+			ti.set_text(0, "[F] " + display_name)
+			ti.set_custom_color(0, Color(0.4, 0.95, 0.5))
+			var kids: Array = item.get("children", [])
+			ti.set_metadata(0, item)
+			_populate_tree(ti, kids)
+		else:
+			ti.set_text(0, "  " + display_name)
+			ti.set_metadata(0, item)
 
 
 func _on_add_bookmark_button_pressed() -> void:
+	populate_folder_options(add_bookmark_folder_option)
 	add_bookmark_panel.show()
 	add_bookmark_id.text = id_input.text
 	add_bookmark_pass.text = pass_input.text
@@ -195,48 +237,201 @@ func _on_confirm_add_bookmark_button_pressed() -> void:
 	var data_type: int = add_bookmark_data_type.selected
 	var encrypt: int = add_bookmark_encrypt.selected
 	var chain: int = add_bookmark_chain_option.selected
+	var folder_choice: String = add_bookmark_folder_option.get_item_text(add_bookmark_folder_option.selected) if add_bookmark_folder_option.selected >= 0 else "[Root]"
 	if id.is_empty() or bname.is_empty():
 		_show_status("ID and Name cannot be empty.")
 		return
-	bookmarks.append({ "name": bname, "id": id, "passphrase": passphrase, "type": data_type, "encrypt": encrypt, "chain": chain})
+	var bm := { "name": bname, "id": id, "passphrase": passphrase, "type": data_type, "encrypt": encrypt, "chain": chain }
+	_add_bookmark_to_folder(bm, folder_choice)
 	save_bookmarks()
-	update_bookmark_list()
+	update_bookmark_tree()
 	_show_status("Bookmark added: %s" % bname)
 	add_bookmark_panel.hide()
 
 
-func _on_bookmark_list_item_selected(index: int) -> void:
-	if index >= 0 and index < bookmarks.size():
-		delete_bookmark_button.disabled = false
-		var bm = bookmarks[index]
-		id_input.text = bm.id
-		pass_input.text = bm.passphrase
-		data_type_option.select(bm.type)
-		encrypt_option.select(bm.encrypt)
-		chain_option.select(bm.chain)
-		_on_encryption_option_item_selected(bm.encrypt)
-		_on_data_type_option_item_selected(bm.type)
-		if bm.type == DataType.DB_TABLE_ROWS:
+func _on_bookmark_tree_item_selected() -> void:
+	var sel := bookmark_tree.get_selected()
+	if sel == null:
+		delete_bookmark_button.disabled = true
+		move_bookmark_button.disabled = true
+		return
+	var meta = sel.get_metadata(0)
+	if meta == null or not (meta is Dictionary):
+		delete_bookmark_button.disabled = true
+		move_bookmark_button.disabled = true
+		return
+	var data: Dictionary = meta
+	if data.is_empty():
+		return
+	var is_folder: bool = data.get("is_folder", false)
+	delete_bookmark_button.disabled = false
+	move_bookmark_button.disabled = is_folder
+	if not is_folder:
+		id_input.text = data.get("id", "")
+		pass_input.text = data.get("passphrase", "")
+		data_type_option.select(data.get("type", 0))
+		encrypt_option.select(data.get("encrypt", 0))
+		chain_option.select(data.get("chain", 1))
+		_on_encryption_option_item_selected(data.get("encrypt", 0))
+		_on_data_type_option_item_selected(data.get("type", 0))
+		if data.get("type", 0) == DataType.DB_TABLE_ROWS:
 			db_before_input.text = ""  # before is session-only, not bookmarked
+		_set_content_title("Bookmark: " + data.get("name", ""))
+	else:
+		# folder selected: clear inputs or leave, just show status
+		_set_content_title("Folder: " + data.get("name", ""))
 
 
 func _on_delete_bookmark_button_pressed() -> void:
-	var selected_index = bookmark_list.get_selected_items()[0]
-	if selected_index >= 0 and selected_index < bookmarks.size():
-		var bm_name = bookmarks[selected_index].name
-		bookmarks.remove_at(selected_index)
-		save_bookmarks()
-		update_bookmark_list()
-		bookmark_list.deselect_all()
-		delete_bookmark_button.disabled = true
-		id_input.text = ""
-		pass_input.text = ""
-		content_label.text = ""
-		data_type_option.select(-1)
-		encrypt_option.select(0)
-		chain_option.select(0)
-		_show_status("Deleted Bookmark: %s" % bm_name)
-		
+	var sel := bookmark_tree.get_selected()
+	if sel == null:
+		return
+	var meta = sel.get_metadata(0)
+	if meta == null or not (meta is Dictionary):
+		return
+	var data: Dictionary = meta
+	if data.is_empty():
+		return
+	var bm_name: String = data.get("name", "item")
+	if data.get("is_folder", false):
+		var kids: Array = data.get("children", []).duplicate()
+		if _remove_item_from_bookmarks(data):
+			for k in kids:
+				bookmarks.append(k)  # promote children to root on folder delete
+			_show_status("Deleted Folder (promoted contents): %s" % bm_name)
+	else:
+		if _remove_item_from_bookmarks(data):
+			_show_status("Deleted Bookmark: %s" % bm_name)
+	save_bookmarks()
+	update_bookmark_tree()
+	bookmark_tree.deselect_all()
+	delete_bookmark_button.disabled = true
+	move_bookmark_button.disabled = true
+	id_input.text = ""
+	pass_input.text = ""
+	content_label.text = ""
+	_set_content_title("— VIEWER —")
+	data_type_option.select(-1)
+	encrypt_option.select(0)
+	chain_option.select(0)
+
+
+func _on_new_folder_button_pressed() -> void:
+	folder_prompt_name.text = ""
+	folder_prompt.show()
+	folder_prompt_name.grab_focus()
+
+
+func _on_cancel_folder_pressed() -> void:
+	folder_prompt.hide()
+
+
+func _on_confirm_folder_pressed() -> void:
+	var fname: String = folder_prompt_name.text.strip_edges()
+	if fname.is_empty():
+		_show_status("Folder name cannot be empty.")
+		return
+	# Prevent duplicate folder names at root for simplicity
+	for item in bookmarks:
+		if item.get("is_folder", false) and item.get("name", "") == fname:
+			_show_status("Folder '%s' already exists at root." % fname)
+			return
+	bookmarks.append({ "name": fname, "is_folder": true, "children": [] })
+	save_bookmarks()
+	update_bookmark_tree()
+	_show_status("Folder created: %s" % fname)
+	folder_prompt.hide()
+
+
+func _on_move_bookmark_button_pressed() -> void:
+	var sel := bookmark_tree.get_selected()
+	if sel == null:
+		return
+	var meta = sel.get_metadata(0)
+	if meta == null or not (meta is Dictionary):
+		return
+	var data: Dictionary = meta
+	if data.is_empty() or data.get("is_folder", false):
+		return
+	move_prompt_current.text = "Selected: " + data.get("name", "")
+	populate_folder_options(move_prompt_target)
+	# Optionally preselect root or current parent - simple for now
+	move_prompt.show()
+
+
+func _on_cancel_move_pressed() -> void:
+	move_prompt.hide()
+
+
+func _on_confirm_move_pressed() -> void:
+	var sel := bookmark_tree.get_selected()
+	if sel == null:
+		move_prompt.hide()
+		return
+	var meta = sel.get_metadata(0)
+	if meta == null or not (meta is Dictionary):
+		move_prompt.hide()
+		return
+	var data: Dictionary = meta
+	if data.is_empty() or data.get("is_folder", false):
+		move_prompt.hide()
+		return
+	var target: String = move_prompt_target.get_item_text(move_prompt_target.selected) if move_prompt_target.selected >= 0 else "[Root]"
+	# First remove from current location
+	if not _remove_item_from_bookmarks(data):
+		_show_status("Failed to locate bookmark for move.")
+		move_prompt.hide()
+		return
+	# Then add to target
+	_add_bookmark_to_folder(data, target)
+	save_bookmarks()
+	update_bookmark_tree()
+	bookmark_tree.deselect_all()
+	move_bookmark_button.disabled = true
+	delete_bookmark_button.disabled = true
+	_show_status("Moved '%s' to %s" % [data.get("name", ""), target])
+	move_prompt.hide()
+
+
+func populate_folder_options(opt: OptionButton) -> void:
+	opt.clear()
+	opt.add_item("[Root]")
+	for item in bookmarks:
+		if item.get("is_folder", false):
+			opt.add_item(item.get("name", ""))
+
+
+func _add_bookmark_to_folder(bm: Dictionary, folder_choice: String) -> void:
+	if folder_choice == "[Root]" or folder_choice.is_empty():
+		bookmarks.append(bm)
+	else:
+		for item in bookmarks:
+			if item.get("is_folder", false) and item.get("name", "") == folder_choice:
+				if not item.has("children"):
+					item["children"] = []
+				item.children.append(bm)
+				return
+		# folder not found, fallback
+		bookmarks.append(bm)
+
+
+func _remove_item_from_bookmarks(target: Dictionary) -> bool:
+	return _remove_recursive(bookmarks, target)
+
+
+func _remove_recursive(arr: Array, target: Dictionary) -> bool:
+	for i in range(arr.size() - 1, -1, -1):
+		var item: Dictionary = arr[i]
+		if item == target:  # reference equality
+			arr.remove_at(i)
+			return true
+		if item.get("is_folder", false):
+			var kids: Array = item.get("children", [])
+			if _remove_recursive(kids, target):
+				return true
+	return false
+
+
 func _on_encryption_option_bookmark_item_selected(index: int) -> void:
 	match index:
 		0, 2: #No Encryption, or Hanlock
@@ -247,9 +442,11 @@ func _on_encryption_option_bookmark_item_selected(index: int) -> void:
 
 #endregion
 
+
 #region Upload
 
 func _on_upload_button_pressed() -> void:
+	populate_folder_options(upload_folder_option)
 	upload_panel.show()
 
 
@@ -289,6 +486,8 @@ func _on_confirm_upload_pressed() -> void:
 		_show_status("Give the new Inscription a name for a Bookmark before inscribing")
 		return
 	var upload_passphrase = upload_pass.text.strip_edges()
+	var folder_choice: String = upload_folder_option.get_item_text(upload_folder_option.selected) if upload_folder_option.selected >= 0 else "[Root]"
+	var added_bm := false
 	match upload_data_type.selected:
 		0: #Simple Text
 			var inscribe_text: String = upload_text_edit.text
@@ -297,22 +496,24 @@ func _on_confirm_upload_pressed() -> void:
 			if (signature.is_empty()):
 				_show_status("Returned Signature empty, can't save Bookmark, check Solscan")
 				return
-			bookmarks.append({ "name": bname, "id": signature, "passphrase": upload_passphrase, "type": upload_data_type.selected + 1, "encrypt": upload_encrypt.selected, "chain": upload_chain_option.selected }) #This is +1 because Metadata is slot 0, but Metadata doesn't make sense to have on Upload
-			save_bookmarks()
-			update_bookmark_list()
-			_show_status("CodeIn Complete, Bookmark added: %s" % bname)
+			var bm := { "name": bname, "id": signature, "passphrase": upload_passphrase, "type": upload_data_type.selected + 1, "encrypt": upload_encrypt.selected, "chain": upload_chain_option.selected }
+			_add_bookmark_to_folder(bm, folder_choice)
+			added_bm = true
 		2, 3: #Downloadable File or Godot PCK
 			var signature: String = str(await iq_sdk.write_code_in_file(upload_encrypt.selected, upload_passphrase, spinner.set_progress, upload_chain_option.text)).strip_edges()
 			var bname: String = upload_name.text.strip_edges()
 			if (signature.is_empty()):
 				_show_status("Returned Signature empty, can't save Bookmark, check Solscan")
 				return
-			bookmarks.append({ "name": bname, "id": signature, "passphrase": upload_passphrase, "type": upload_data_type.selected + 1, "encrypt": upload_encrypt.selected, "chain": upload_chain_option.selected }) #This is +1 because Metadata is slot 0, but Metadata doesn't make sense to have on Upload
-			save_bookmarks()
-			update_bookmark_list()
-			_show_status("CodeIn Complete, Bookmark added: %s" % bname)
+			var bm := { "name": bname, "id": signature, "passphrase": upload_passphrase, "type": upload_data_type.selected + 1, "encrypt": upload_encrypt.selected, "chain": upload_chain_option.selected }
+			_add_bookmark_to_folder(bm, folder_choice)
+			added_bm = true
 		_:
 			_show_status("Upload not supported for this DataType (DB types use separate create/writeRow flows)")
+	if added_bm:
+		save_bookmarks()
+		update_bookmark_tree()
+		_show_status("CodeIn Complete, Bookmark added: %s" % upload_name.text.strip_edges())
 	upload_name.text = ""
 	upload_pass.text = ""
 	upload_text_edit.text = ""
@@ -350,6 +551,7 @@ func _show_status(msg: String) -> void:
 func _on_iqsdk_load_complete() -> void:
 	spinner.visible = false
 	_show_status("Load Complete")
+	# title already set before load; optionally could snapshot id here
 
 
 func _on_iqsdk_load_failed() -> void:
@@ -396,3 +598,15 @@ func _on_encryption_option_item_selected(index: int) -> void:
 			pass_input.show()
 
 #endregion
+
+# Aesthetic / viewer helpers (connected in _ready)
+func _on_clear_output_pressed() -> void:
+	content_label.text = ""
+	_set_content_title("— VIEWER —")
+
+func _on_copy_content_pressed() -> void:
+	if content_label.text.length() > 0:
+		DisplayServer.clipboard_set(content_label.text)
+		_show_status("Copied viewer content to clipboard.")
+	else:
+		_show_status("Nothing to copy.")

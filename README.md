@@ -15,7 +15,7 @@ Store decentralized apps, encrypted notes, or any data permanently on Solana, Mo
   - Downloadable arbitrary files
   - **Executable Godot apps** — download, optionally cache, and run `.pck` / `.zip` using a local Godot binary
 - **"Code In" inscriptions** — write new text or upload files to the blockchain with live cost estimates
-- **Bookmarks** — save and quickly reload your favorite inscriptions with full settings (chain, encryption, data type)
+- **Bookmarks** — save and quickly reload your favorite inscriptions with full settings (chain, encryption, data type); now organizeable into folders (root-level) with tree view, create/move/delete support in the sidebar. Old flat bookmarks auto-migrate as root items.
 - **Encryption options**
   - Public (no encryption)
   - AES-256-CBC + PBKDF2 (passphrase)
@@ -79,8 +79,8 @@ The app icon blends Godot's distinctive three-lobe abstract mascot, blockchain c
 │   │   ├── data_handler.gd  # AES + HanLock encrypt/decrypt
 │   │   └── pck_executor.gd  # Launches external Godot --main-pack <pck>
 │   └── UI/
-│       ├── browser_ui.gd    # Main application logic & UI wiring
-│       ├── browser_ui.tscn  # The browser interface
+│       ├── browser_ui.gd    # Main application logic & UI wiring (header, tree bookmarks w/ folders, styled viewer)
+│       ├── browser_ui.tscn  # The browser interface (with aesthetic header, folder/move prompts, Tree for org)
 │       └── spinner.gd       # Meme-filled loading overlay
 ├── export_presets.cfg
 └── project.godot

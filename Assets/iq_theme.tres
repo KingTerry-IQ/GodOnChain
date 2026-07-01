@@ -7,7 +7,12 @@ content_margin_left = 4.0
 content_margin_top = 4.0
 content_margin_right = 4.0
 content_margin_bottom = 4.0
-bg_color = Color(0.1, 0.1, 0.1, 0.3)
+bg_color = Color(0.08, 0.08, 0.08, 0.6)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0.4, 0, 0.5)
 corner_radius_top_left = 3
 corner_radius_top_right = 3
 corner_radius_bottom_right = 3
@@ -53,8 +58,22 @@ corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
 corner_detail = 5
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_eoetr"]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_terminal"]
+content_margin_left = 6.0
+content_margin_top = 6.0
+content_margin_right = 6.0
+content_margin_bottom = 6.0
 bg_color = Color(0, 0, 0, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0.6, 0, 0.7)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+corner_detail = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pqys7"]
 bg_color = Color(0, 0, 0, 1)
@@ -62,15 +81,23 @@ bg_color = Color(0, 0, 0, 1)
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_mtroj"]
 bg_color = Color(0, 0.22745098, 0, 1)
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tree_bg"]
+bg_color = Color(0.02, 0.02, 0.02, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tree_selected"]
+bg_color = Color(0, 0.4, 0, 0.9)
+border_width_left = 2
+border_color = Color(0, 1, 0, 1)
+
 [resource]
 Button/colors/font_color = Color(0, 1, 0, 1)
-Button/colors/font_disabled_color = Color(0, 0, 0, 1)
+Button/colors/font_disabled_color = Color(0, 0.7, 0, 0.75)
 Button/colors/font_focus_color = Color(0, 1, 0, 1)
 Button/colors/font_hover_color = Color(0, 0, 0, 1)
 Button/colors/font_hover_pressed_color = Color(0, 0, 0, 1)
 Button/colors/font_outline_color = Color(0, 0, 0, 1)
 Button/colors/font_pressed_color = Color(0, 1, 0, 1)
-Button/colors/icon_disabled_color = Color(0, 0, 0, 1)
+Button/colors/icon_disabled_color = Color(0, 0.7, 0, 0.75)
 Button/colors/icon_focus_color = Color(0, 0, 0, 1)
 Button/colors/icon_hover_color = Color(0, 0, 0, 1)
 Button/colors/icon_hover_pressed_color = Color(0, 0, 0, 1)
@@ -122,8 +149,37 @@ LineEdit/styles/focus = null
 LineEdit/styles/normal = null
 LineEdit/styles/read_only = null
 OptionButton/fonts/font = ExtResource("1_akedw")
-Panel/styles/panel = SubResource("StyleBoxFlat_eoetr")
+Panel/styles/panel = SubResource("StyleBoxFlat_terminal")
 ProgressBar/colors/font_color = Color(0, 0.8, 0, 1)
 ProgressBar/styles/background = SubResource("StyleBoxFlat_pqys7")
 ProgressBar/styles/fill = SubResource("StyleBoxFlat_mtroj")
 RichTextLabel/colors/default_color = Color(0, 1, 0, 1)
+RichTextLabel/colors/font_selected_color = Color(0, 0, 0, 1)
+RichTextLabel/colors/selection_color = Color(0, 0.6, 0, 0.6)
+RichTextLabel/styles/normal = SubResource("StyleBoxFlat_terminal")
+Tree/colors/font_color = Color(0, 1, 0, 1)
+Tree/colors/font_disabled_color = Color(0, 0.5, 0, 0.6)
+Tree/colors/font_outline_color = Color(0, 0, 0, 1)
+Tree/colors/font_selected_color = Color(0, 0, 0, 1)
+Tree/colors/guide_color = Color(0, 0.5, 0, 0.4)
+Tree/colors/relationship_line_color = Color(0, 0.6, 0, 0.3)
+Tree/constants/inner_item_margin_bottom = 2
+Tree/constants/inner_item_margin_left = 4
+Tree/constants/inner_item_margin_right = 4
+Tree/constants/inner_item_margin_top = 2
+Tree/constants/item_margin = 12
+Tree/constants/outline_size = 0
+Tree/font_sizes/font_size = 15
+Tree/fonts/font = ExtResource("1_akedw")
+Tree/styles/bg = SubResource("StyleBoxFlat_tree_bg")
+Tree/styles/button_collapsed = null
+Tree/styles/button_collapsed_mirrored = null
+Tree/styles/button_expanded = null
+Tree/styles/button_expanded_mirrored = null
+Tree/styles/cursor = SubResource("StyleBoxFlat_tree_selected")
+Tree/styles/cursor_unfocused = SubResource("StyleBoxFlat_tree_selected")
+Tree/styles/selected = SubResource("StyleBoxFlat_tree_selected")
+Tree/styles/selected_focus = SubResource("StyleBoxFlat_tree_selected")
+Tree/styles/title_button_hover = null
+Tree/styles/title_button_normal = null
+Tree/styles/title_button_pressed = null
