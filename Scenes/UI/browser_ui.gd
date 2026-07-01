@@ -599,11 +599,6 @@ func _on_encryption_option_item_selected(index: int) -> void:
 
 #endregion
 
-# Aesthetic / viewer helpers (connected in _ready)
-func _on_clear_output_pressed() -> void:
-	content_label.text = ""
-	_set_content_title("— VIEWER —")
-
 func _on_copy_content_pressed() -> void:
 	if content_label.text.length() > 0:
 		DisplayServer.clipboard_set(content_label.text)

@@ -99,15 +99,6 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 11
 text = "INSCRIBE • RETRIEVE • EXECUTE • ON-CHAIN INSCRIPTIONS POWERED BY $IQ"
 
-[node name="HeaderActions" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox/Header/HBox" unique_id=1407764236]
-layout_mode = 2
-size_flags_horizontal = 0
-theme_override_constants/separation = 6
-
-[node name="ClearOutputButton" type="Button" parent="Panel/MarginContainer/MainVBox/Header/HBox/HeaderActions" unique_id=1407764237]
-layout_mode = 2
-text = "Clear"
-
 [node name="MainHBox" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox" unique_id=1407764229]
 layout_mode = 2
 size_flags_vertical = 3
@@ -845,7 +836,6 @@ horizontal_alignment = 1
 
 [node name="DataHandler" parent="." unique_id=2101791151 instance=ExtResource("5_f8u0t")]
 
-[connection signal="pressed" from="Panel/MarginContainer/MainVBox/Header/HBox/HeaderActions/ClearOutputButton" to="." method="_on_clear_output_pressed"]
 [connection signal="pressed" from="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/UploadButton" to="." method="_on_upload_button_pressed"]
 [connection signal="pressed" from="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/NewFolderButton" to="." method="_on_new_folder_button_pressed"]
 [connection signal="item_selected" from="Panel/MarginContainer/MainVBox/MainHBox/Bookmarks/ScrollContainer/MarginContainer/VBoxContainer/BookmarkTree" to="." method="_on_bookmark_tree_item_selected"]
