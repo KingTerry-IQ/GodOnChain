@@ -54,7 +54,10 @@ echo "    node $(node --version) at $(command -v node)"
 echo "==> Staging sources in $WORK_DIR"
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
-for f in server.ts host.ts helpers.ts package.json tsconfig.json build.mjs; do
+# Every TypeScript source, not an enumerated list: a hardcoded set silently
+# omits new modules, and the failure surfaces as a typecheck error much later.
+cp "$SRC_DIR"/*.ts "$WORK_DIR/"
+for f in package.json tsconfig.json build.mjs; do
   cp "$SRC_DIR/$f" "$WORK_DIR/$f"
 done
 cd "$WORK_DIR"

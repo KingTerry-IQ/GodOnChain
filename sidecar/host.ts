@@ -19,7 +19,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { randomBytes, timingSafeEqual } from "crypto";
 
-export type Scope = "read" | "write" | "control";
+export type Scope = "read" | "write" | "reveal" | "control";
 
 export interface TokenRecord {
   id: string;
@@ -33,6 +33,7 @@ export interface PendingApproval {
   id: string;
   tokenId: string;
   label: string;
+  scope: Scope;
   action: string;
   details: Record<string, unknown>;
   createdAt: number;
@@ -128,15 +129,19 @@ export function requireScope(scope: Scope) {
 }
 
 /**
- * Resolves true if the caller may spend. Callers holding `write` pass straight
- * through; everyone else parks here until the host answers or the prompt times out.
+ * Resolves true if the caller already holds `scope`. Everyone else parks here
+ * until the host answers or the prompt times out.
+ *
+ * Both spending and revealing go through this: they are different powers, but
+ * the user's decision is the same shape, and so is the machinery.
  */
-export function requestWriteApproval(
+export function requestApproval(
   token: TokenRecord,
+  scope: Scope,
   action: string,
   details: Record<string, unknown>,
 ): { approved: Promise<boolean>; approvalId: string | null } {
-  if (token.scopes.has("write")) {
+  if (token.scopes.has(scope)) {
     return { approved: Promise.resolve(true), approvalId: null };
   }
 
@@ -160,6 +165,7 @@ export function requestWriteApproval(
     id,
     tokenId: token.id,
     label: token.label,
+    scope,
     action,
     details,
     createdAt: Date.now(),
@@ -175,6 +181,7 @@ export function listApprovals() {
     id: a.id,
     tokenId: a.tokenId,
     label: a.label,
+    scope: a.scope,
     action: a.action,
     details: a.details,
     createdAt: a.createdAt,
@@ -197,7 +204,7 @@ export function resolveApproval(
   pending.delete(id);
 
   if (allowed && remember) {
-    tokens.get(record.tokenId)?.scopes.add("write");
+    tokens.get(record.tokenId)?.scopes.add(record.scope);
   }
 
   record.resolve(allowed);

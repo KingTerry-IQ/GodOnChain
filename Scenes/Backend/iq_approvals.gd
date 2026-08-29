@@ -27,10 +27,14 @@ const PANEL_WIDTH := 820
 var host: IQHost
 
 var _panel: Panel
+var _title: Label
 var _heading: Label
 var _detail: Label
 var _warning: Label
 var _queue: Array[Dictionary] = []
+## Rings when a prompt appears. Lives here rather than in any app, because the
+## request may well arrive while the user is looking at that app's window.
+var _chime: IQChime
 var _showing: String = ""
 
 
@@ -47,10 +51,15 @@ func attach(root: Control) -> void:
 	host.approval_requested.connect(_on_approval_requested)
 	host.approval_withdrawn.connect(_on_approval_withdrawn)
 
+	_chime = IQChime.new()
+	_chime.name = "IQChime"
+	add_child(_chime)
+
 	var box := IQOverlay.make(root, PANEL_WIDTH)
 	_panel = box.get_meta("panel")
 
-	box.add_child(IQOverlay.title("— WRITE REQUEST —"))
+	_title = IQOverlay.title("— WRITE REQUEST —")
+	box.add_child(_title)
 
 	_heading = IQOverlay.body()
 	box.add_child(_heading)
@@ -101,9 +110,27 @@ func _show_next() -> void:
 		return
 	var approval: Dictionary = _queue.pop_front()
 	_showing = str(approval.get("id", ""))
+
+	# A decrypt costs nothing but exposes something private, so it is framed as
+	# access rather than expense. Saying "this spends from your wallet" over a
+	# decrypt would train people to ignore the words.
+	var revealing := str(approval.get("scope", "write")) == "reveal"
+	_title.text = "— ACCESS REQUEST —" if revealing else "— WRITE REQUEST —"
+	_warning.text = (
+		"This opens something addressed to you, using your wallet's identity key. "
+		+ "Only allow apps you trust."
+		if revealing
+		else "This spends from the wallet configured in GodOnChain. "
+		+ "Only allow apps you trust."
+	)
+
 	_heading.text = _summarise(approval)
 	_detail.text = _details(approval)
 	_panel.show()
+
+	# The app that asked may not be the window in front of the user.
+	if _chime != null:
+		_chime.ring()
 
 #endregion
 
@@ -157,11 +184,15 @@ func _summarise(approval: Dictionary) -> String:
 				"%s wants to write a row to '%s' on %s."
 				% [label, str(details.get("tableName", "?")), chain]
 			)
+		"decrypt":
+			return "%s wants to open a sealed message addressed to you." % label
 		_:
 			return "%s wants to write to %s." % [label, chain]
 
 
-## Size, filename and an estimated cost, when the request carries them.
+## What is being written, how big it is, and what it will cost. Every write
+## pays the base transaction even when it carries almost no payload, so a cost
+## is always shown rather than only when a byte count happens to arrive.
 func _details(approval: Dictionary) -> String:
 	var details: Dictionary = approval.get("details", {})
 	var chain := str(details.get("chain", "sol")).to_upper()
@@ -169,29 +200,43 @@ func _details(approval: Dictionary) -> String:
 
 	var lines: PackedStringArray = []
 
+	var database := str(details.get("dbRootId", ""))
+	if not database.is_empty():
+		lines.append("Database:         %s" % database)
+
+	var table := str(details.get("tableName", ""))
+	if not table.is_empty():
+		lines.append("Table:            %s" % table)
+
 	var filename := str(details.get("filename", ""))
 	if not filename.is_empty():
 		lines.append("File:             %s" % filename)
+
 	if bytes > 0:
 		lines.append("Size:             %s" % String.humanize_size(bytes))
-		lines.append("Estimated cost:   %s" % _estimate_cost(chain, bytes))
 
-	if lines.is_empty():
-		return "No further details were supplied."
+	if str(approval.get("scope", "write")) == "reveal":
+		var recipients := int(details.get("recipients", 0))
+		if recipients > 0:
+			lines.append("Addressed to:     %d key(s), one of them yours" % recipients)
+		lines.append("Cost:             nothing. This spends no funds.")
+	else:
+		lines.append("Estimated cost:   %s" % _estimate_cost(chain, bytes))
 	return "\n".join(lines)
 
 
 func _estimate_cost(chain: String, bytes: int) -> String:
-	if bytes <= 0:
-		return "unknown"
+	# Deliberately no early return for 0: a payload-free write still pays the
+	# base transaction, which is exactly what the formula yields.
+	var payload: int = maxi(bytes, 0)
 
 	if chain.to_lower().begins_with("mon"):
 		@warning_ignore("integer_division")
-		var mon_chunks: int = (bytes + MON_CHUNK_BYTES - 1) / MON_CHUNK_BYTES
+		var mon_chunks: int = (payload + MON_CHUNK_BYTES - 1) / MON_CHUNK_BYTES
 		return "~%.4f MON" % (MON_FINAL_TX + mon_chunks * MON_PER_CHUNK)
 
 	@warning_ignore("integer_division")
-	var sol_chunks: int = (bytes + SOL_CHUNK_BYTES - 1) / SOL_CHUNK_BYTES
+	var sol_chunks: int = (payload + SOL_CHUNK_BYTES - 1) / SOL_CHUNK_BYTES
 	return "~%.6f SOL" % (SOL_INITIAL_TX + sol_chunks * SOL_PER_CHUNK + SOL_FINAL_TX)
 
 #endregion

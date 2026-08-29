@@ -4,6 +4,16 @@ extends SceneTree
 
 var failures := 0
 
+## The suite's own vault, so the real one at user://iq_secrets.* is never
+## opened, written or deleted by a test run.
+const TEST_SECRETS := "user://selftest_secrets.cfg"
+const TEST_SALT := "user://selftest_secrets.salt"
+
+
+func _clear_test_vault() -> void:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SECRETS))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SALT))
+
 # Filled in by the backgrounded write below.
 var write_result: Variant = null
 var write_done := false
@@ -13,10 +23,50 @@ var seen_approval: Dictionary = {}
 func _capture_approval(approval: Dictionary) -> void:
 	seen_approval = approval
 
+## Waits for the next approval to surface, then denies it.
+func _await_and_deny(host: IQHost, what: String) -> Dictionary:
+	seen_approval = {}
+	var waited := 0
+	while seen_approval.is_empty() and waited < 80:
+		await create_timer(0.25).timeout
+		waited += 1
+	if seen_approval.is_empty():
+		check("%s raises an approval" % what, false)
+		return {}
+	check("%s raises an approval" % what, true)
+	var found := seen_approval.duplicate()
+	await host.resolve_approval(str(found.get("id", "")), false)
+	return found
+
 
 func _background_write(client: IQClient) -> void:
 	write_result = await client.write_code_in("hello on-chain", "note.txt", "txt", "sol")
 	write_done = true
+
+var table_result: Variant = null
+var table_done := false
+var row_result: Variant = null
+var row_done := false
+
+
+func _background_create_table(client: IQClient) -> void:
+	table_result = await client.create_table(
+		"selftest-root", "notes", PackedStringArray(["id", "body"]), "id"
+	)
+	table_done = true
+
+
+func _background_write_row(client: IQClient) -> void:
+	row_result = await client.write_row("selftest-root", "notes", {"id": "1", "body": "hi"})
+	row_done = true
+
+var allowed_result: Variant = null
+var allowed_done := false
+
+
+func _background_allowed_row(client: IQClient) -> void:
+	allowed_result = await client.write_row("selftest-root", "notes", {"id": "2", "body": "yes"})
+	allowed_done = true
 
 
 func check(label: String, ok: bool, detail: String = "") -> void:
@@ -37,10 +87,13 @@ func _run() -> void:
 	await process_frame
 
 	# Start from a clean slate so the first-run path is what gets exercised.
-	DirAccess.remove_absolute(IQHost.SECRETS_PATH)
-	DirAccess.remove_absolute(IQHost.SALT_PATH)
-
 	var host := IQHost.new()
+	# Point the vault somewhere disposable *before* anything touches it. These
+	# files hold real signing keys; a suite must never go near the real ones.
+	host.secrets_path = TEST_SECRETS
+	host.salt_path = TEST_SALT
+	_clear_test_vault()
+
 	root.add_child(host)
 	await process_frame
 
@@ -141,6 +194,93 @@ func _run() -> void:
 		check("  and a readable reason", client.last_error.length() > 0, client.last_error)
 
 		print("")
+		print("
+--- database writes ---")
+
+		# Validation happens client-side, before anything is spent.
+		var bad_id = await client.create_table(
+			"root", "t", PackedStringArray(["a", "b"]), "missing"
+		)
+		check("create_table rejects an id column not in the columns", bad_id == null)
+		check("  and says why", client.last_error.contains("missing"), client.last_error)
+
+		var bad_cols = await client.create_table("root", "t", PackedStringArray([]), "id")
+		check("create_table rejects an empty column list", bad_cols == null)
+
+		var bad_row = await client.write_row("root", "t", 42)
+		check("write_row rejects a non-object row", bad_row == null)
+		check("  and says why", client.last_error.contains("Dictionary"), client.last_error)
+
+		# Now the real thing: both must park for approval, not execute.
+		_background_create_table(client)
+		var t_appr: Dictionary = await _await_and_deny(host, "create_table")
+		if not t_appr.is_empty():
+			check("  as a createTable action", str(t_appr.get("action", "")) == "createTable",
+				str(t_appr.get("action", "")))
+			var t_det: Dictionary = t_appr.get("details", {})
+			check("  naming the database", str(t_det.get("dbRootId", "")) == "selftest-root",
+				str(t_det.get("dbRootId", "")))
+			check("  naming the table", str(t_det.get("tableName", "")) == "notes",
+				str(t_det.get("tableName", "")))
+
+		var waited_t := 0
+		while not table_done and waited_t < 80:
+			await create_timer(0.25).timeout
+			waited_t += 1
+		check("  denial releases create_table", table_done)
+		check("  with no table created", table_result == null)
+
+		_background_write_row(client)
+		var r_appr: Dictionary = await _await_and_deny(host, "write_row")
+		if not r_appr.is_empty():
+			check("  as a writeRow action", str(r_appr.get("action", "")) == "writeRow",
+				str(r_appr.get("action", "")))
+			var r_det: Dictionary = r_appr.get("details", {})
+			check("  naming the table", str(r_det.get("tableName", "")) == "notes",
+				str(r_det.get("tableName", "")))
+			# The Dictionary row was encoded to JSON before being sent.
+			check("  measuring the encoded row", int(r_det.get("bytes", 0)) > 0,
+				str(r_det.get("bytes", 0)))
+
+		var waited_r := 0
+		while not row_done and waited_r < 80:
+			await create_timer(0.25).timeout
+			waited_r += 1
+		check("  denial releases write_row", row_done)
+		check("  with no row written", row_result == null)
+
+		# Denial is only half the story: prove the gate actually opens. With no
+		# signer configured the SDK must be what fails, not the approval broker.
+		_background_allowed_row(client)
+		seen_approval = {}
+		var waited_a := 0
+		while seen_approval.is_empty() and waited_a < 80:
+			await create_timer(0.25).timeout
+			waited_a += 1
+		check("an allowed write_row reaches the prompt", not seen_approval.is_empty())
+		if not seen_approval.is_empty():
+			await host.resolve_approval(str(seen_approval.get("id", "")), true, false)
+
+		var waited_b := 0
+		while not allowed_done and waited_b < 120:
+			await create_timer(0.25).timeout
+			waited_b += 1
+		check("  approval releases it", allowed_done)
+		# The vault above holds a deliberately fake key, so the SDK fails decoding
+		# it. That failure is the proof: the request reached the SDK at all.
+		var why := client.last_error.to_lower()
+		check(
+			"  and failed inside the SDK, on the fake key",
+			why.contains("base58") or why.contains("signer") or why.contains("key"),
+			client.last_error
+		)
+		check(
+			"  not on a refusal",
+			not client.last_error.to_lower().contains("denied"),
+			client.last_error
+		)
+
+		print("")
 		var revoked: bool = await host.revoke_app_token(str(minted.get("id", "")))
 		check("revokes the app token", revoked)
 
@@ -153,8 +293,55 @@ func _run() -> void:
 		check("marked not ready", not host.is_ready)
 
 	# Do not leave a vault behind under a password only this file knows.
-	DirAccess.remove_absolute(IQHost.SECRETS_PATH)
-	DirAccess.remove_absolute(IQHost.SALT_PATH)
+	_clear_test_vault()
+
+	_test_chime()
 
 	print("\n%d failure(s)" % failures)
 	quit(1 if failures > 0 else 0)
+
+
+func _test_chime() -> void:
+	print("\n--- the approval chime ---")
+	var chime := IQChime.new()
+	var rate := int(IQChime.MIX_RATE)
+
+	# Nothing until something asks.
+	var quiet := 0.0
+	for i in rate:
+		quiet = maxf(quiet, absf(chime._next_sample().x))
+	check("silent until an app asks", quiet < 0.0001, "%.5f" % quiet)
+
+	# Strike it the way ring() does, without needing an audio device.
+	chime._envelope = 1.0
+	chime._phase = 0.0
+	chime._frequency = IQChime.FIRST_HZ
+	chime._pending = int(IQChime.SECOND_DELAY * IQChime.MIX_RATE)
+
+	# 40 ms slots: fine enough to see the second strike, which a coarser
+	# window straddles and hides.
+	var slots: Array[float] = []
+	var slot := int(rate * 0.04)
+	for s in 26:
+		var loudest := 0.0
+		for i in slot:
+			loudest = maxf(loudest, absf(chime._next_sample().x))
+		slots.append(loudest)
+
+	check("it rings", slots[0] > 0.2, "%.3f" % slots[0])
+	check("  without clipping", slots[0] < 0.95, "%.3f" % slots[0])
+
+	# A second strike shows up as the envelope rising again after decaying.
+	var restruck := false
+	for i in range(1, slots.size()):
+		if slots[i] > slots[i - 1] * 1.15:
+			restruck = true
+	check("  twice, so it reads as a summons rather than a click", restruck)
+
+	check("  decaying rather than cutting off", slots[10] < slots[0] * 0.6)
+	check("  and gone within a second and a half", slots[25] < slots[0] * 0.06,
+		"%.4f vs %.3f" % [slots[25], slots[0]])
+
+	# It must not be silenceable: the request may have arrived while the user
+	# was looking at another window entirely.
+	check("there is no mute for it", not (chime as Object).has_method("set_enabled"))

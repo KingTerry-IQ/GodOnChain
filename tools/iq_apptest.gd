@@ -34,10 +34,10 @@ func _initialize() -> void:
 func _run() -> void:
 	await process_frame
 
-	DirAccess.remove_absolute(IQHost.SECRETS_PATH)
-	DirAccess.remove_absolute(IQHost.SALT_PATH)
-
 	var host := IQHost.new()
+	# Disposable vault: the real keys are never touched by a test.
+	host.secrets_path = "user://apptest_secrets.cfg"
+	host.salt_path = "user://apptest_secrets.salt"
 	root.add_child(host)
 	await process_frame
 	host.approval_requested.connect(_capture)
@@ -141,8 +141,8 @@ func _run() -> void:
 
 	host.stop()
 	DirAccess.remove_absolute(result_path)
-	DirAccess.remove_absolute(IQHost.SECRETS_PATH)
-	DirAccess.remove_absolute(IQHost.SALT_PATH)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(host.secrets_path))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(host.salt_path))
 	_finish()
 
 

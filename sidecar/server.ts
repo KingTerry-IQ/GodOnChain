@@ -1,10 +1,19 @@
 import express, { NextFunction, Request, Response } from "express";
 import type { AddressInfo } from "net";
+import { ed25519 } from "@noble/curves/ed25519.js";
+import * as timelock from "./timelock";
 import { unlinkSync } from "fs";
 import * as solanaIqlabs from "@iqlabs-official/solana-sdk";
 import ethIqlabs from "@iqlabs-official/ethereum-sdk";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { Wallet, JsonRpcProvider } from "ethers";
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  sendAndConfirmTransaction,
+} from "@solana/web3.js";
+import { Wallet, JsonRpcProvider, formatEther } from "ethers";
 import dotenv from "dotenv";
 import bs58 from "bs58";
 import { decodeWithPassword, encodeWithPassword } from "hanlock";
@@ -15,7 +24,7 @@ import {
   listApprovals,
   listTokens,
   registerToken,
-  requestWriteApproval,
+  requestApproval,
   requireScope,
   resolveApproval,
   revokeToken,
@@ -47,7 +56,12 @@ const PORT = Number(argOf("port") ?? process.env.IQ_SIDECAR_PORT ?? 6900);
 const HOST_TOKEN = argOf("token") ?? process.env.IQ_SIDECAR_TOKEN;
 const standalone = !HOST_TOKEN;
 
-const hostToken = registerToken("GodOnChain (host)", ["read", "write", "control"], HOST_TOKEN);
+// The host is the user, so it holds every power and never prompts itself.
+const hostToken = registerToken(
+  "GodOnChain (host)",
+  ["read", "write", "reveal", "control"],
+  HOST_TOKEN,
+);
 
 // === RPC URLs ===
 const solanaRpcUrl = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
@@ -104,12 +118,12 @@ app.get("/control/approvals", requireScope("control"), (_req: Request, res: Resp
 });
 
 /**
- * Gates a route that spends from the signer. The host's own token passes
- * straight through; anyone else parks here until the user answers the prompt
- * GodOnChain raises. Sitting in middleware keeps the route handlers untouched.
+ * Gates a route behind a scope the caller may not hold. The host's own token
+ * passes straight through; anyone else parks here until the user answers the
+ * prompt GodOnChain raises. Sitting in middleware keeps the handlers untouched.
  */
-const gateSpend =
-  (action: string, describe: (req: Request) => Record<string, unknown>) =>
+const gate =
+  (scope: Scope, action: string, describe: (req: Request) => Record<string, unknown>) =>
   async (req: Request, res: Response, next: NextFunction) => {
     let details: Record<string, unknown>;
     try {
@@ -117,11 +131,242 @@ const gateSpend =
     } catch {
       details = {};
     }
-    const { approved, approvalId } = requestWriteApproval(req.iqToken!, action, details);
+    const { approved, approvalId } = requestApproval(req.iqToken!, scope, action, details);
     if (!approvalId) return next();
     if (await approved) return next();
     return res.status(403).json({ error: "Denied by the user", action, details });
   };
+
+/** Spending gate. Every route using this moves the user's money. */
+const gateSpend = (
+  action: string,
+  describe: (req: Request) => Record<string, unknown>,
+) => gate("write", action, describe);
+
+// ==================== TIME LOCKS ====================
+// Sealing something behind sequential work nobody can parallelise. Creating a
+// puzzle is instant for whoever makes it; opening one is the honest climb.
+
+/** This machine's sequential squaring rate, measured once and reused. */
+let squaringRate = 0;
+
+/** Solving pins a core for as long as it takes, so only one runs at a time. */
+let solving = false;
+
+app.get("/timelock/rate", requireScope("read"), (_req: Request, res: Response) => {
+  try {
+    if (!squaringRate) squaringRate = timelock.benchmark();
+    res.json({ squaringsPerSecond: squaringRate });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Could not measure" });
+  }
+});
+
+/**
+ * Builds a puzzle around a secret. Instant, because the maker holds the
+ * trapdoor — which is discarded before this returns.
+ */
+app.post("/timelock/create", requireScope("read"), (req: Request, res: Response) => {
+  try {
+    const { secret, seconds } = req.body ?? {};
+    if (typeof secret !== "string" || !/^[0-9a-fA-F]+$/.test(secret) || secret.length % 2) {
+      return res.status(400).json({ error: "secret must be hex" });
+    }
+    const duration = Number(seconds);
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return res.status(400).json({ error: "seconds must be a positive number" });
+    }
+    if (!squaringRate) squaringRate = timelock.benchmark();
+
+    const puzzle = timelock.create(Buffer.from(secret, "hex"), duration, squaringRate);
+    res.json(puzzle);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Could not build the puzzle" });
+  }
+});
+
+/**
+ * Solves a puzzle. This is deliberately slow — that is the entire product — so
+ * it runs as a job and reports progress like any other long operation.
+ */
+app.post("/timelock/solve", requireScope("read"), (req: Request, res: Response) => {
+  const { puzzle } = req.body ?? {};
+  if (!timelock.isPuzzle(puzzle)) {
+    return res.status(400).json({ error: "That is not a time-lock puzzle" });
+  }
+  if (solving) {
+    return res.status(409).json({ error: "A puzzle is already being solved" });
+  }
+
+  const jobId = `job_${Date.now()}_${jobCounter++}`;
+  jobs.set(jobId, { progress: 0, status: "pending" });
+  solving = true;
+
+  (async () => {
+    try {
+      const secret = await timelock.solve(puzzle, (percent: number) => {
+        const job = jobs.get(jobId);
+        if (job) job.progress = percent;
+      });
+      const job = jobs.get(jobId);
+      if (job) {
+        job.status = "completed";
+        job.result = { secret: secret.toString("hex") };
+        job.progress = 100;
+      }
+    } catch (err: any) {
+      const job = jobs.get(jobId);
+      if (job) {
+        job.status = "error";
+        // A GCM failure here means the climb finished but the answer was wrong,
+        // which in practice means the puzzle was tampered with.
+        job.error = err.message || "The puzzle did not open";
+      }
+    } finally {
+      solving = false;
+    }
+  })();
+
+  res.json({ jobId });
+});
+
+// ==================== IDENTITY & ENCRYPTION ====================
+// The SDK derives a deterministic X25519 keypair from a wallet signature, so a
+// user's Solana key *is* their encryption identity: same wallet, same identity,
+// recoverable forever with nothing to store or lose.
+
+/** Signs raw bytes with the configured Solana signer. */
+const signWithSolanaKey = async (message: Uint8Array): Promise<Uint8Array> => {
+  const secretKeyEnv = process.env.SOLANA_SIGNER_PRIVATE_KEY;
+  if (!secretKeyEnv) throw new Error("No Solana signer is configured");
+  const signer = Keypair.fromSecretKey(bs58.decode(secretKeyEnv));
+  // Keypair.secretKey is the 64-byte expanded form; noble wants the 32-byte seed.
+  return ed25519.sign(message, signer.secretKey.slice(0, 32));
+};
+
+let cachedIdentity: { privKey: Uint8Array; pubKey: string } | null = null;
+
+const ourIdentity = async () => {
+  if (cachedIdentity) return cachedIdentity;
+  const pair = await solanaIqlabs.crypto.deriveX25519Keypair(signWithSolanaKey);
+  cachedIdentity = {
+    privKey: pair.privKey,
+    pubKey: Buffer.from(pair.pubKey).toString("hex"),
+  };
+  return cachedIdentity;
+};
+
+/**
+ * Which wallets are paying, and what they hold.
+ *
+ * Read scope: an address and its balance are public on both chains, and no
+ * private key is touched beyond deriving the address from it. This exists
+ * because a failed write is otherwise unreadable — an empty account and a
+ * genuine bug produce the same "simulation failed".
+ */
+app.get("/wallet", requireScope("read"), async (_req: Request, res: Response) => {
+  const out: Record<string, unknown> = {};
+
+  const solKey = process.env.SOLANA_SIGNER_PRIVATE_KEY;
+  if (solKey) {
+    try {
+      const signer = Keypair.fromSecretKey(bs58.decode(solKey));
+      const lamports = await solanaConnection.getBalance(signer.publicKey);
+      out.sol = {
+        address: signer.publicKey.toBase58(),
+        balance: lamports / 1e9,
+        unit: "SOL",
+        rpc: solanaRpcUrl,
+      };
+    } catch (err: any) {
+      out.sol = { error: err.message || "Could not read the Solana wallet" };
+    }
+  }
+
+  const monKey = process.env.MON_SIGNER_PRIVATE_KEY;
+  if (monKey) {
+    try {
+      const provider = new JsonRpcProvider(monadRpcUrl);
+      const signer = new Wallet(monKey, provider);
+      out.mon = {
+        address: signer.address,
+        balance: Number(formatEther(await provider.getBalance(signer.address))),
+        unit: "MON",
+        rpc: monadRpcUrl,
+      };
+    } catch (err: any) {
+      out.mon = { error: err.message || "Could not read the Monad wallet" };
+    }
+  }
+
+  res.json(out);
+});
+
+/** This signer's public encryption identity. Safe to publish; others use it
+ *  to encrypt things only this wallet can open. */
+app.get("/crypto/identity", requireScope("read"), async (_req: Request, res: Response) => {
+  try {
+    const identity = await ourIdentity();
+    res.json({ publicKey: identity.pubKey });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Could not derive an identity" });
+  }
+});
+
+/** Encrypts to one or more recipients' public identities. Needs no secret of
+ *  ours, so it is an ordinary read-scope call. */
+app.post("/crypto/encryptTo", requireScope("read"), async (req: Request, res: Response) => {
+  try {
+    const { recipients, data } = req.body ?? {};
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+      return res.status(400).json({ error: "At least one recipient is required" });
+    }
+    if (typeof data !== "string" || data.length === 0) {
+      return res.status(400).json({ error: "Nothing to encrypt" });
+    }
+    const envelope = await solanaIqlabs.crypto.multiEncrypt(
+      recipients.map((r: any) => String(r)),
+      new Uint8Array(Buffer.from(data, "utf8")),
+    );
+    res.json(envelope);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Could not encrypt" });
+  }
+});
+
+/**
+ * Opens an envelope addressed to this wallet.
+ *
+ * Gated on `reveal` rather than `read`: it costs nothing, but an app holding
+ * it freely could open anything ever addressed to the user, so the user is
+ * asked exactly as they are for a spend.
+ */
+app.post(
+  "/crypto/decrypt",
+  gate("reveal", "decrypt", (req) => ({
+    recipients: Array.isArray(req.body?.envelope?.recipients)
+      ? req.body.envelope.recipients.length
+      : 0,
+  })),
+  async (req: Request, res: Response) => {
+    try {
+      const { envelope } = req.body ?? {};
+      if (!envelope || !Array.isArray(envelope.recipients)) {
+        return res.status(400).json({ error: "That is not an envelope" });
+      }
+      const identity = await ourIdentity();
+      const plaintext = await solanaIqlabs.crypto.multiDecrypt(
+        identity.privKey,
+        identity.pubKey,
+        envelope,
+      );
+      res.json({ data: Buffer.from(plaintext).toString("utf8") });
+    } catch (err: any) {
+      // The usual cause is that this wallet simply is not a recipient.
+      res.status(400).json({ error: err.message || "This is not addressed to you" });
+    }
+  },
+);
 
 app.post("/control/approvals/:id", requireScope("control"), (req: Request, res: Response) => {
   const { decision, remember } = req.body ?? {};
@@ -295,7 +540,7 @@ app.post(
         const job = jobs.get(jobId);
         if (job) {
           job.status = "error";
-          job.error = err.message || "Failed to write code";
+          job.error = describeChainError(err) || "Failed to write code";
         }
       }
     })();
@@ -557,6 +802,73 @@ async function tolerantSolDbRows(solanaIqlabs: any, tablePda: string, options: a
 // ==================== UNIFIED DB OPERATIONS (chain-aware) ====================
 // Single set of endpoints for both chains. Pass "chain": "sol" | "mon" in body/query.
 
+/**
+ * Turns a chain error into something a person can act on.
+ *
+ * Solana reports any rejected instruction as "Transaction simulation failed"
+ * and puts the actual reason in the program logs, which the SDK does not
+ * include in the message. Without them every failure looks the same.
+ */
+const describeChainError = (err: any): string => {
+  const base = String(err?.message || "The transaction failed");
+  const logs: unknown = err?.logs;
+  if (!Array.isArray(logs) || logs.length === 0) return base;
+  const lines = logs as string[];
+  const blamed = lines.filter((l) =>
+    /error|failed|insufficient|constraint|unauthorized/i.test(l),
+  );
+  return [base, ...(blamed.length > 0 ? blamed : lines).slice(-4)].join("\n");
+};
+
+/**
+ * Below this a Solana account cannot pay rent for anything at all, so the
+ * failure is worth naming before simulation rejects it opaquely. Deliberately
+ * far under any real cost: this catches an empty wallet, and leaves every
+ * genuine judgement about affordability to the chain.
+ */
+const SOL_DUST_LAMPORTS = 2_000_000; // 0.002 SOL
+
+/**
+ * Makes sure a Solana db_root account exists before anything hangs off it.
+ *
+ * The two SDKs differ here and the difference is invisible until it bites:
+ * Monad's writer initialises the root itself, while Solana's createTable throws
+ * "db_root not found" and creates nothing. So the same app builds fine on MON
+ * and fails on SOL. Levelling it here keeps that out of every app.
+ *
+ * Idempotent, and it never touches a root that already exists — including one
+ * somebody else created, which stays theirs.
+ */
+const ensureSolanaDbRoot = async (
+  signer: Keypair,
+  dbRootId: string,
+): Promise<{ created: boolean; address: string; signature?: string }> => {
+  const seed = solanaIqlabs.utils.toSeedBytes(dbRootId);
+  const address = solanaIqlabs.contract.getDbRootPda(seed);
+
+  const existing = await solanaConnection.getAccountInfo(address);
+  if (existing) return { created: false, address: address.toBase58() };
+
+  const builder = solanaIqlabs.contract.createInstructionBuilder();
+  const instruction = solanaIqlabs.contract.initializeDbRootInstruction(
+    builder,
+    {
+      db_root: address,
+      signer: signer.publicKey,
+      system_program: SystemProgram.programId,
+    },
+    { db_root_id: seed },
+  );
+
+  const signature = await sendAndConfirmTransaction(
+    solanaConnection,
+    new Transaction().add(instruction),
+    [signer],
+    { commitment: "confirmed" },
+  );
+  return { created: true, address: address.toBase58(), signature };
+};
+
 // --- createTable (unified) ---
 app.post(
   "/db/createTable",
@@ -683,6 +995,23 @@ app.post(
 
         console.log(`[SOL][createTable] Signer: ${signer.publicKey.toBase58()} dbRoot="${dbRootId}" tableHint="${tableHint}"`);
 
+        const lamports = await solanaConnection.getBalance(signer.publicKey);
+        if (lamports < SOL_DUST_LAMPORTS) {
+          throw new Error(
+            `The Solana wallet ${signer.publicKey.toBase58()} holds ` +
+              `${(lamports / 1e9).toFixed(6)} SOL. Creating a table pays rent for ` +
+              `several accounts, so fund it before trying again.`,
+          );
+        }
+
+        // Solana will not create this for us the way Monad does.
+        const root = await ensureSolanaDbRoot(signer, String(dbRootId).trim());
+        if (root.created) {
+          console.log(`[SOL] Initialised db_root "${dbRootId}" at ${root.address}`);
+          // Let it land before a table tries to reference it.
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+
         // Convert gate.mint and writers to PublicKey if strings provided
         let gateForCall: any = undefined;
         if (gate && gate.mint) {
@@ -721,6 +1050,9 @@ app.post(
             tableHint,
             tableName: String(tableName),
             chain: "sol",
+            // A root costs rent, so say when one was paid for.
+            rootCreated: root.created,
+            rootAddress: root.address,
           };
           job.progress = 100;
         }
@@ -730,7 +1062,7 @@ app.post(
       const job = jobs.get(jobId);
       if (job) {
         job.status = "error";
-        job.error = err.message || `Failed to create table on ${normalizedChain}`;
+        job.error = describeChainError(err) || `Failed to create table on ${normalizedChain}`;
       }
     }
   })();
@@ -835,7 +1167,7 @@ app.post(
       const job = jobs.get(jobId);
       if (job) {
         job.status = "error";
-        job.error = err.message || `Failed to write row on ${normalizedChain}`;
+        job.error = describeChainError(err) || `Failed to write row on ${normalizedChain}`;
       }
     }
   })();

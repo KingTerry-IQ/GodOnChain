@@ -60,7 +60,7 @@ var control_token: String = ""
 var is_ready: bool = false
 var last_error: String = ""
 
-## Keys and RPC endpoints. Loaded from SECRETS_PATH, edited in the settings UI.
+## Keys and RPC endpoints. Loaded from the vault, edited in the settings UI.
 var secrets: Dictionary = {
 	"SOLANA_RPC_URL": "",
 	"SOLANA_SIGNER_PRIVATE_KEY": "",
@@ -68,6 +68,12 @@ var secrets: Dictionary = {
 	"MON_SIGNER_PRIVATE_KEY": "",
 	"HANLOCK_PASS": "",
 }
+
+## Where the vault lives. Overridable so a test can point somewhere harmless:
+## these files hold real signing keys, and a suite that deletes them destroys
+## something the user cannot get back by re-running anything.
+var secrets_path: String = SECRETS_PATH
+var salt_path: String = SALT_PATH
 
 var _pid: int = -1
 var _port: int = 0
@@ -203,12 +209,14 @@ func _resolve_launch_command() -> Dictionary:
 
 
 ## Copies the binary out of res:// (it may be inside the .pck, where it cannot
-## be executed) into user://bin/. Re-extracts only when the bundled copy differs.
+## be executed) into user://bin/.
+##
+## The file is named after its own size, which sidesteps the real problem on
+## Windows: a running .exe cannot be overwritten. A second instance of the app,
+## or a sidecar that outlived its parent, used to make startup fail outright
+## with a file error and no way forward. A new build simply gets a new name.
 func _extract_binary(source: String, exe_name: String) -> String:
 	DirAccess.make_dir_recursive_absolute(RUNTIME_DIR)
-
-	var target := RUNTIME_DIR + exe_name
-	var stamp_path := RUNTIME_DIR + exe_name + ".stamp"
 
 	var src := FileAccess.open(source, FileAccess.READ)
 	if src == null:
@@ -217,39 +225,60 @@ func _extract_binary(source: String, exe_name: String) -> String:
 	var bytes := src.get_buffer(src.get_length())
 	src.close()
 
-	# Cheap identity check; a full hash of a ~100 MB binary on every launch
-	# would be a noticeable startup cost.
-	var stamp := "%d" % bytes.size()
-	var needs_write := true
-	if FileAccess.file_exists(target) and FileAccess.file_exists(stamp_path):
-		var existing := FileAccess.open(stamp_path, FileAccess.READ)
+	var stem := exe_name.get_basename()
+	var suffix := exe_name.get_extension()
+	var target := "%s%s-%d%s" % [
+		RUNTIME_DIR, stem, bytes.size(), "." + suffix if not suffix.is_empty() else ""
+	]
+
+	# Already unpacked at this exact size: reuse it and never touch the file,
+	# so a copy currently running is left alone.
+	if FileAccess.file_exists(target):
+		var existing := FileAccess.open(target, FileAccess.READ)
 		if existing != null:
-			needs_write = existing.get_as_text().strip_edges() != stamp
+			var same := existing.get_length() == bytes.size()
 			existing.close()
+			if same:
+				_make_executable(target)
+				_sweep_old_binaries(stem, target)
+				return ProjectSettings.globalize_path(target)
 
-	if needs_write:
-		var out := FileAccess.open(target, FileAccess.WRITE)
-		if out == null:
-			last_error = (
-				"Could not unpack the on-chain service to %s (error %d)."
-				% [target, FileAccess.get_open_error()]
-			)
-			return ""
-		out.store_buffer(bytes)
-		out.close()
+	var out := FileAccess.open(target, FileAccess.WRITE)
+	if out == null:
+		last_error = (
+			"Could not unpack the on-chain service (error %d). Another copy of "
+			% FileAccess.get_open_error()
+			+ "GodOnChain may be running."
+		)
+		return ""
+	out.store_buffer(bytes)
+	out.close()
 
-		var stamp_file := FileAccess.open(stamp_path, FileAccess.WRITE)
-		if stamp_file != null:
-			stamp_file.store_string(stamp)
-			stamp_file.close()
+	_make_executable(target)
+	_sweep_old_binaries(stem, target)
+	return ProjectSettings.globalize_path(target)
 
-	var absolute := ProjectSettings.globalize_path(target)
 
-	if not OS.has_feature("windows"):
-		# The copy loses the executable bit.
-		OS.execute("chmod", ["+x", absolute])
+func _make_executable(path: String) -> void:
+	if OS.has_feature("windows"):
+		return
+	# The copy loses the executable bit.
+	OS.execute("chmod", ["+x", ProjectSettings.globalize_path(path)])
 
-	return absolute
+
+## Removes binaries left by earlier builds. Best effort only: one that is still
+## running cannot be deleted, and that is fine — it will go on the next launch.
+func _sweep_old_binaries(stem: String, keep: String) -> void:
+	var dir := DirAccess.open(RUNTIME_DIR)
+	if dir == null:
+		return
+	for file_name in dir.get_files():
+		if not file_name.begins_with(stem):
+			continue
+		var path := RUNTIME_DIR + file_name
+		if path == keep:
+			continue
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 ## Asks the OS for an unused port by binding one and immediately letting go.
@@ -472,7 +501,7 @@ var is_unlocked: bool = false
 ## the user is asked to set keys up again. That also migrates vaults written
 ## by the older machine-id scheme, which had no salt file.
 func vault_exists() -> bool:
-	return FileAccess.file_exists(SECRETS_PATH) and FileAccess.file_exists(SALT_PATH)
+	return FileAccess.file_exists(secrets_path) and FileAccess.file_exists(salt_path)
 
 
 ## Opens the vault. Returns false on the wrong password, leaving the app in a
@@ -491,7 +520,7 @@ func unlock(password: String) -> bool:
 		return false
 
 	var file := FileAccess.open_encrypted_with_pass(
-		SECRETS_PATH, FileAccess.READ, _derive_key(password, salt)
+		secrets_path, FileAccess.READ, _derive_key(password, salt)
 	)
 	if file == null:
 		last_error = "Wrong master password."
@@ -529,7 +558,7 @@ func save_secrets(password: String) -> bool:
 			return false
 
 	var file := FileAccess.open_encrypted_with_pass(
-		SECRETS_PATH, FileAccess.WRITE, _derive_key(password, salt)
+		secrets_path, FileAccess.WRITE, _derive_key(password, salt)
 	)
 	if file == null:
 		last_error = "Could not save keys (error %d)." % FileAccess.get_open_error()
@@ -575,9 +604,9 @@ func _derive_key(password: String, salt: PackedByteArray) -> String:
 
 ## The salt is not secret; it only stops one rainbow table covering everyone.
 func _load_salt() -> PackedByteArray:
-	if not FileAccess.file_exists(SALT_PATH):
+	if not FileAccess.file_exists(salt_path):
 		return PackedByteArray()
-	var file := FileAccess.open(SALT_PATH, FileAccess.READ)
+	var file := FileAccess.open(salt_path, FileAccess.READ)
 	if file == null:
 		return PackedByteArray()
 	var salt := file.get_buffer(SALT_BYTES)
@@ -586,7 +615,7 @@ func _load_salt() -> PackedByteArray:
 
 
 func _store_salt(salt: PackedByteArray) -> bool:
-	var file := FileAccess.open(SALT_PATH, FileAccess.WRITE)
+	var file := FileAccess.open(salt_path, FileAccess.WRITE)
 	if file == null:
 		last_error = "Could not create the key vault (error %d)." % FileAccess.get_open_error()
 		return false

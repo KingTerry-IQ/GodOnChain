@@ -87,6 +87,43 @@ Consequences for you:
 - Apps discovered through the discovery file (rather than launched by
   GodOnChain) hold a read-only token and cannot request writes at all.
 
+### Database tables
+
+```gdscript
+await iq.create_table(db_root_id, table_name, columns, id_col, chain, options, cb)
+await iq.write_row(db_root_id, table_name, row, chain, options, cb)
+```
+
+Both spend, so both behave exactly like `write_code_in()` — they block on the
+user's approval and return `null` if it is refused.
+
+`row` takes a Dictionary and encodes it for you, or an already-encoded JSON
+String if you would rather do it yourself.
+
+The two chains disagree about table identity, and the client smooths over what
+it honestly can. Solana derives the table's address from a **table seed** and
+also wants a **table hint**; both default to `table_name`, so you only pass
+them when they need to differ. Monad uses `table_name` alone and supports
+`is_private`. Everything chain-specific goes in `options`:
+
+| Option | Chain | Meaning |
+|---|---|---|
+| `table_seed` | SOL | Address-deriving seed. Defaults to `table_name`. |
+| `table_hint` | SOL | Required by the SDK. Defaults to `table_name`. |
+| `skip_confirmation` | SOL | Don't wait for confirmation on `write_row`. |
+| `is_private` | MON | Create the table private. |
+| `gate` | both | Token gate. Shapes differ per chain — see the sidecar README. |
+| `writers` | both | Whitelist of addresses allowed to write. |
+| `ext_keys` | both | Extra keys, passed straight through. |
+
+**If you set a `table_seed` at creation, pass the same one to every
+`write_row`** — it is what addresses the table on Solana, and a different seed
+silently means a different table.
+
+Results carry the host's own fields (`dbRootId`, `tableName`, the chain) plus a
+`signature` key, aliased from Monad's `txHash` so you don't have to branch on
+chain to find the transaction id.
+
 Ask for a write when the user did something that implies one. An app that
 prompts on startup is an app that gets denied.
 
@@ -95,6 +132,8 @@ prompts on startup is an app that gets denied.
 | Member | Purpose |
 |---|---|
 | `discover() -> bool` | Find and confirm a host. Call once, `await` it. |
+| `create_table(...)` | Create a table. Spends; blocks on approval. |
+| `write_row(...)` | Append a row. Spends; blocks on approval. |
 | `is_available() -> bool` | Whether the last contact succeeded. |
 | `last_error: String` | Why the last call failed. Safe to display. |
 | `app_label: String` | The name the host knows you by, when launched by it. |
