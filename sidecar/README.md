@@ -31,8 +31,32 @@ Node install needed on the user's machine. The Godot export presets pick up
 `sidecar/bin/*`; `IQHost` extracts it to `user://bin/` at startup, because a
 binary cannot be executed from inside a `.pck`.
 
-Builds for the platform you run it on. Node's SEA format can't cross-compile,
-so the Linux binary has to be built on Linux (or in CI).
+That builds for the platform you run it on. Node's SEA format cannot
+cross-compile, so the Linux binary needs a Linux host:
+
+```bash
+wsl bash build-linux.sh     # from Windows, with WSL installed
+bash build-linux.sh         # from inside Linux or CI
+npm run build:linux         # same thing
+```
+
+`build-linux.sh` handles the two things a bare `node build.mjs` does not:
+it stages sources onto the Linux filesystem (building on `/mnt/c` is slow, and
+the `node_modules` there holds win32 esbuild binaries), and it finds a Linux
+Node even when the PATH is full of Windows ones — under WSL, `npm` usually
+resolves to `/mnt/c/Program Files/nodejs/npm`, which would quietly produce a
+Windows build. If no Linux Node is present it installs one under `~/.local`,
+no sudo. It then starts the result and checks it answers `/health` and refuses
+unauthenticated calls before installing it into `bin/`.
+
+**Do not strip the Linux binary.** It is ~124 MB with debug info, and `strip`
+looks tempting, but the SEA blob does not survive it — the binary segfaults on
+start. (The relocation warnings `strip` prints are the tell.)
+
+Each export preset carries only its own platform's binary:
+`sidecar/bin/iq-sidecar.exe` for Windows, `sidecar/bin/iq-sidecar` for Linux.
+The executable bit is lost when the Linux binary sits on a Windows mount;
+`IQHost` re-applies it with `chmod +x` after extracting to `user://bin`.
 
 On Windows, postject prints `warning: The signature seems corrupted!`. That is
 expected — injecting the blob invalidates node.exe's Authenticode signature.
@@ -120,6 +144,14 @@ Godot --headless --path . --script res://tools/iq_selftest.gd
 Exercises the vault (save, lock, wrong password, unlock, round-trip), the
 sidecar lifecycle, token minting and revocation, and the full write-approval
 round-trip. Exits non-zero on failure.
+
+```bash
+Godot --headless --path . --script res://tools/iq_apptest.gd
+```
+
+The cross-process one: launches `examples/onchain_hello` as its own Godot
+process with a minted token, and answers the approval its write raises. This
+is what proves a launched app can reach the SDK without keys or extensions.
 
 ## Upstream
 

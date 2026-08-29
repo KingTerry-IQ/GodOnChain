@@ -44,7 +44,6 @@ const FIELDS := [
 	},
 ]
 
-const LABEL_WIDTH := 260
 const PANEL_WIDTH := 1000
 const UNLOCK_WIDTH := 720
 
@@ -90,85 +89,17 @@ func is_unconfigured() -> bool:
 	return not host.vault_exists()
 
 
-#region Shared construction
-
-## Full-screen overlay matching the AddBookmark / FolderPrompt prompts.
-func _make_overlay(root: Control, width: int) -> VBoxContainer:
-	var panel := Panel.new()
-	panel.visible = false
-	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	panel.anchor_right = 1.0
-	panel.anchor_bottom = 1.0
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.anchor_right = 1.0
-	margin.anchor_bottom = 1.0
-	for side: String in ["left", "top", "right", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 10)
-	panel.add_child(margin)
-
-	var center := CenterContainer.new()
-	margin.add_child(center)
-
-	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(width, 0)
-	box.add_theme_constant_override("separation", 20)
-	center.add_child(box)
-
-	root.add_child(panel)
-	# Remembered on the container so callers can show/hide the whole overlay.
-	box.set_meta("panel", panel)
-	return box
-
-
-func _make_title(text: String) -> Label:
-	var title := Label.new()
-	title.text = text
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	return title
-
-
-func _make_note(text: String) -> Label:
-	var note := Label.new()
-	note.text = text
-	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	note.modulate = Color(0, 1, 0, 0.6)
-	return note
-
-
-## Label + masked LineEdit on one row, as elsewhere in the app.
-func _make_row(parent: VBoxContainer, label_text: String, placeholder: String) -> LineEdit:
-	var row := HBoxContainer.new()
-
-	var label := Label.new()
-	label.text = label_text
-	label.custom_minimum_size = Vector2(LABEL_WIDTH, 0)
-	row.add_child(label)
-
-	var input := LineEdit.new()
-	input.secret = true
-	input.placeholder_text = placeholder
-	input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(input)
-
-	parent.add_child(row)
-	return input
-
-#endregion
 
 
 #region Keys screen
 
 func _build_keys_panel(root: Control) -> void:
-	var box := _make_overlay(root, PANEL_WIDTH)
+	var box := IQOverlay.make(root, PANEL_WIDTH)
 	_keys_panel = box.get_meta("panel")
 
-	box.add_child(_make_title("— KEYS —"))
+	box.add_child(IQOverlay.title("— KEYS —"))
 	box.add_child(
-		_make_note(
+		IQOverlay.note(
 			(
 				"Held by GodOnChain and passed to the local on-chain service. "
 				+ "Stored encrypted on this machine, never sent anywhere else. "
@@ -179,44 +110,32 @@ func _build_keys_panel(root: Control) -> void:
 	box.add_child(HSeparator.new())
 
 	for field: Dictionary in FIELDS:
-		_inputs[str(field["key"])] = _make_row(
+		_inputs[str(field["key"])] = IQOverlay.row(
 			box, str(field["label"]), str(field["hint"])
 		)
 
 	box.add_child(HSeparator.new())
 
-	_master_row_label = _make_note("")
+	_master_row_label = IQOverlay.note("")
 	box.add_child(_master_row_label)
-	_master_input = _make_row(box, "Master password:", "unlocks these keys")
-	_confirm_input = _make_row(box, "Confirm password:", "type it again")
+	_master_input = IQOverlay.row(box, "Master password:", "unlocks these keys")
+	_confirm_input = IQOverlay.row(box, "Confirm password:", "type it again")
 
 	_keys_status = Label.new()
 	_keys_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_keys_status)
 
-	var buttons := HBoxContainer.new()
-	buttons.add_theme_constant_override("separation", 10)
+	var strip := IQOverlay.buttons(box)
 
+	# Sits left of the spacer, so it reads as a field toggle rather than an action.
 	_reveal = CheckBox.new()
 	_reveal.text = "Reveal"
 	_reveal.toggled.connect(_on_reveal_toggled)
-	buttons.add_child(_reveal)
+	strip.add_child(_reveal)
+	strip.move_child(_reveal, 0)
 
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	buttons.add_child(spacer)
-
-	var save := Button.new()
-	save.text = "Save"
-	save.pressed.connect(_on_save_pressed)
-	buttons.add_child(save)
-
-	var cancel := Button.new()
-	cancel.text = "Cancel"
-	cancel.pressed.connect(_on_cancel_pressed)
-	buttons.add_child(cancel)
-
-	box.add_child(buttons)
+	IQOverlay.button(strip, "Save", _on_save_pressed)
+	IQOverlay.button(strip, "Cancel", _on_cancel_pressed)
 
 
 func _build_open_button(root: Control) -> void:
@@ -310,12 +229,12 @@ func _on_save_pressed() -> void:
 #region Unlock screen
 
 func _build_unlock_panel(root: Control) -> void:
-	var box := _make_overlay(root, UNLOCK_WIDTH)
+	var box := IQOverlay.make(root, UNLOCK_WIDTH)
 	_unlock_panel = box.get_meta("panel")
 
-	box.add_child(_make_title("— LOCKED —"))
+	box.add_child(IQOverlay.title("— LOCKED —"))
 	box.add_child(
-		_make_note(
+		IQOverlay.note(
 			(
 				"Your signing keys are encrypted on this machine. "
 				+ "Unlock them to inscribe. Reading on-chain data works either way."
@@ -324,31 +243,16 @@ func _build_unlock_panel(root: Control) -> void:
 	)
 	box.add_child(HSeparator.new())
 
-	_unlock_input = _make_row(box, "Master password:", "")
+	_unlock_input = IQOverlay.row(box, "Master password:", "")
 	_unlock_input.text_submitted.connect(func(_t: String) -> void: _on_unlock_pressed())
 
 	_unlock_status = Label.new()
 	_unlock_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_unlock_status)
 
-	var buttons := HBoxContainer.new()
-	buttons.add_theme_constant_override("separation", 10)
-
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	buttons.add_child(spacer)
-
-	var unlock := Button.new()
-	unlock.text = "Unlock"
-	unlock.pressed.connect(_on_unlock_pressed)
-	buttons.add_child(unlock)
-
-	var skip := Button.new()
-	skip.text = "Read-only"
-	skip.pressed.connect(_on_skip_pressed)
-	buttons.add_child(skip)
-
-	box.add_child(buttons)
+	var strip := IQOverlay.buttons(box)
+	IQOverlay.button(strip, "Unlock", _on_unlock_pressed)
+	IQOverlay.button(strip, "Read-only", _on_skip_pressed)
 
 
 ## Shows the unlock screen and returns once the user has resolved it.

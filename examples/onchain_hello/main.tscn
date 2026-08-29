@@ -1,0 +1,68 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://main.gd" id="1_main"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="Box" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Status" type="Label" parent="Margin/Box"]
+layout_mode = 2
+text = "Connecting..."
+
+[node name="SigRow" type="HBoxContainer" parent="Margin/Box"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Margin/Box/SigRow"]
+layout_mode = 2
+text = "Signature:"
+
+[node name="Signature" type="LineEdit" parent="Margin/Box/SigRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "transaction id to read"
+
+[node name="Read" type="Button" parent="Margin/Box/SigRow"]
+layout_mode = 2
+text = "Read"
+
+[node name="WriteRow" type="HBoxContainer" parent="Margin/Box"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Margin/Box/WriteRow"]
+layout_mode = 2
+text = "Inscribe:"
+
+[node name="Payload" type="LineEdit" parent="Margin/Box/WriteRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "hello from an inscribed app"
+
+[node name="Write" type="Button" parent="Margin/Box/WriteRow"]
+layout_mode = 2
+text = "Write"
+
+[node name="Output" type="RichTextLabel" parent="Margin/Box"]
+layout_mode = 2
+size_flags_vertical = 3

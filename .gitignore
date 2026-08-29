@@ -8,3 +8,6 @@ sidecar/node_modules/
 sidecar/build/
 sidecar/bin/
 sidecar/.env
+
+# Nested example project has its own Godot cache.
+examples/onchain_hello/.godot/

@@ -91,7 +91,7 @@ func _ready() -> void:
 
 	# The bundled on-chain service. Apps launched from here share this one
 	# instance, so it comes up with the app rather than on demand.
-	iq_sdk.settings.attach(self)
+	iq_sdk.attach_ui(self)
 	iq_sdk.backend_failed.connect(_on_backend_failed)
 	await _start_backend()
 
@@ -509,9 +509,32 @@ func _on_chain_option_upload_item_selected(_index: int) -> void:
 	_on_data_type_option_upload_item_selected(upload_data_type.selected)
 
 
+## Checks there is actually a usable signer before starting an inscription,
+## so a locked vault or a missing key is a clear message rather than a failed
+## job several seconds later. Offers the unlock screen when that is the fix.
+func _ensure_can_write(chain: String) -> bool:
+	if iq_sdk.can_write(chain):
+		return true
+
+	if iq_sdk.settings.needs_unlock():
+		_show_status("Unlock your signing keys to inscribe.")
+		if await iq_sdk.settings.prompt_unlock() and iq_sdk.can_write(chain):
+			# Keys reached the sidecar at spawn, so it needs restarting with them.
+			_show_status("Applying your keys...")
+			return await iq_sdk.restart_backend()
+		_show_status("Inscribing needs your signing keys. Still in read-only mode.")
+		return false
+
+	_show_status("No %s signing key is configured. Click KEYS to add one." % chain.to_upper())
+	iq_sdk.settings.open()
+	return false
+
+
 func _on_confirm_upload_pressed() -> void:
 	if upload_name.text.strip_edges().is_empty():
 		_show_status("Give the new Inscription a name for a Bookmark before inscribing")
+		return
+	if not await _ensure_can_write(upload_chain_option.text):
 		return
 	var upload_passphrase = upload_pass.text.strip_edges()
 	var folder_choice: String = upload_folder_option.get_item_text(upload_folder_option.selected) if upload_folder_option.selected >= 0 else "[Root]"

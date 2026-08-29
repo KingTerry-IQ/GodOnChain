@@ -32,6 +32,8 @@ var host: IQHost
 var client: IQClient
 ## Keys and RPC endpoints, formerly the wrapper repo's .env file.
 var settings: IQSettings
+## "App X wants to spend" prompts.
+var approvals: IQApprovals
 
 var _file_upload_path: String = ""
 
@@ -43,7 +45,7 @@ func _ready() -> void:
 	host.name = "IQHost"
 	add_child(host)
 
-	var approvals := IQApprovals.new(host)
+	approvals = IQApprovals.new(host)
 	approvals.name = "IQApprovals"
 	add_child(approvals)
 
@@ -64,6 +66,12 @@ func _ready() -> void:
 	# Launched apps reach the sidecar through their own minted token.
 	pck_executor.host = host
 	data_handler.client = client
+
+
+## Builds the on-chain screens under `root`, the themed Control they live in.
+func attach_ui(root: Control) -> void:
+	settings.attach(root)
+	approvals.attach(root)
 
 
 ## Starts the bundled sidecar and connects to it. Returns true when usable.

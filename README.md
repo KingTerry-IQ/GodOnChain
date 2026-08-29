@@ -51,7 +51,9 @@ That makes GodOnChain the **host and wallet** for on-chain Godot apps:
 
 App authors: copy `addons/iq_client/iq_client.gd` into your project. It is
 plain GDScript over HTTPRequest — no keys, no addons, no SDK copy. See
-[addons/iq_client/README.md](addons/iq_client/README.md).
+[addons/iq_client/README.md](addons/iq_client/README.md), and
+[examples/onchain_hello](examples/onchain_hello/README.md) for a working app
+that reads and inscribes through the host.
 
 Service details, including the security model, are in
 [sidecar/README.md](sidecar/README.md).
@@ -61,6 +63,9 @@ Service details, including the security model, are in
 - **Godot 4.6+** (GL Compatibility renderer) to run from source
 - **Node.js 18+** — only to *build* the bundled service. Users of an exported
   build need nothing installed.
+- To build the **Linux** service binary, a Linux host: WSL, a container, or CI.
+  `wsl bash sidecar/build-linux.sh` covers the WSL case, installing its own
+  Node under `~/.local` if there isn't one.
 - For running inscribed Godot apps: a compatible Godot executable (select once
   in the UI. For sure compatibility, match the Godot version which the pck/zip
   was exported with, but a more recent version may work fine depending on the
@@ -74,7 +79,8 @@ Service details, including the security model, are in
 1. Clone this repo.
 2. Build the bundled on-chain service once:
    ```bash
-   cd sidecar && npm install && node build.mjs
+   cd sidecar && npm install && node build.mjs   # for this platform
+   wsl bash build-linux.sh                       # additionally, for Linux exports
    ```
 3. Open `project.godot` in Godot 4.6+ and press **F5**.
 4. Click **KEYS** (top right) and enter your signing keys and RPC URLs, plus a
@@ -109,7 +115,10 @@ The app icon blends Godot's distinctive three-lobe abstract mascot, blockchain c
 ├── addons/
 │   ├── GDQuest_GDScript_formatter/
 │   └── iq_client/            # Drop-in on-chain client for apps you launch
+├── examples/
+│   └── onchain_hello/       # Example app using that client
 ├── sidecar/                 # The bundled IQ Labs SDK service (built to bin/)
+├── tools/                   # Headless test harnesses
 ├── Assets/                  # iq_theme.tres, IBMPlexMono font, spinner shader
 ├── Resources/
 │   └── Options.gd           # Persisted user settings (godot exe path)
@@ -118,7 +127,8 @@ The app icon blends Godot's distinctive three-lobe abstract mascot, blockchain c
 │   │   ├── IQ_SDK.gd        # App-level SDK surface (reads, writes, PCKs)
 │   │   ├── iq_host.gd       # Spawns/reaps the service, mints app tokens
 │   │   ├── iq_approvals.gd  # "App X wants to spend" prompts
-│   │   ├── iq_settings.gd   # Keys and RPC endpoints
+│   │   ├── iq_settings.gd   # Encrypted key vault (unlock + keys screens)
+│   │   ├── iq_overlay.gd    # Shared prompt-overlay builders
 │   │   ├── data_handler.gd  # AES + HanLock encrypt/decrypt
 │   │   └── pck_executor.gd  # Launches external Godot --main-pack <pck>
 │   └── UI/
@@ -137,6 +147,13 @@ The app icon blends Godot's distinctive three-lobe abstract mascot, blockchain c
 - The app and the apps it launches use the *same* client (`addons/iq_client/iq_client.gd`);
   GodOnChain just always has a host available.
 - Changing keys restarts the service, since it reads them from its environment at spawn.
+- Prompt overlays added in code go through `IQOverlay`, so they match the
+  ones already in `browser_ui.tscn` and inherit `iq_theme.tres`.
+- Two headless test harnesses:
+  ```bash
+  Godot --headless --path . --script res://tools/iq_selftest.gd   # vault, host, approvals
+  Godot --headless --path . --script res://tools/iq_apptest.gd    # a launched app, cross-process
+  ```
 - The loading phrases are lovingly excessive (see `spinner.gd`).
 
 ## ⚠️ Disclaimer
