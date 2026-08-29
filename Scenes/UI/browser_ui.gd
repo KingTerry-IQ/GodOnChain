@@ -89,6 +89,34 @@ func _ready() -> void:
 	# Note: most new buttons/prompts are connected via scene .tscn signals now.
 	_set_content_title("— VIEWER —")
 
+	# The bundled on-chain service. Apps launched from here share this one
+	# instance, so it comes up with the app rather than on demand.
+	iq_sdk.settings.attach(self)
+	iq_sdk.backend_failed.connect(_on_backend_failed)
+	await _start_backend()
+
+
+## Brings up the bundled on-chain service and reports how it went.
+func _start_backend() -> void:
+	# Keys live in an encrypted vault; reads do not need it, so unlocking is
+	# offered rather than required.
+	if iq_sdk.settings.needs_unlock():
+		_show_status("Unlock your signing keys, or continue read-only.")
+		await iq_sdk.settings.prompt_unlock()
+
+	_show_status("Starting the on-chain service...")
+	if await iq_sdk.start_backend():
+		_show_status("On-chain service ready.")
+		# First run: nothing is configured yet, so ask before they hit a failure.
+		if iq_sdk.settings.is_unconfigured():
+			iq_sdk.settings.open()
+	else:
+		_show_status("On-chain service unavailable. " + iq_sdk.host.last_error)
+
+
+func _on_backend_failed(reason: String) -> void:
+	_show_status("On-chain service: " + reason)
+
 
 func _set_content_title(text: String) -> void:
 	if content_title:

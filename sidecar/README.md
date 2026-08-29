@@ -1,0 +1,130 @@
+# IQ sidecar
+
+The IQ Labs SDKs, wrapped in a local HTTP service that GodOnChain bundles,
+spawns and reaps. This replaces the separate
+`iqlabs-solana-sdk-local-server-wrapper` repo — there is no second project to
+clone, install or run.
+
+## Why it is still a service
+
+GodOnChain launches inscribed `.pck` apps as **separate OS processes**, under
+a **stock Godot binary the user picked** (see `Scenes/Backend/pck_executor.gd`).
+Those apps cannot call into GodOnChain's GDScript, and cannot rely on any
+GDExtension GodOnChain uses — `.gdextension` libraries generally can't be
+loaded from inside a `--main-pack` package either.
+
+A loopback HTTP service is the one interface all of them can reach, whatever
+engine version or extensions they have. So the SDK stays a service; what
+changed is that GodOnChain now ships and owns it.
+
+## Building
+
+```bash
+cd sidecar
+npm install
+node build.mjs
+```
+
+That bundles `server.ts` with esbuild and injects it into a copy of the Node
+runtime, producing `bin/iq-sidecar[.exe]` (~88 MB) — self-contained, with no
+Node install needed on the user's machine. The Godot export presets pick up
+`sidecar/bin/*`; `IQHost` extracts it to `user://bin/` at startup, because a
+binary cannot be executed from inside a `.pck`.
+
+Builds for the platform you run it on. Node's SEA format can't cross-compile,
+so the Linux binary has to be built on Linux (or in CI).
+
+On Windows, postject prints `warning: The signature seems corrupted!`. That is
+expected — injecting the blob invalidates node.exe's Authenticode signature.
+Sign the finished binary yourself if you ship signed builds.
+
+Other scripts:
+
+```bash
+npm run bundle     # just build/sidecar.cjs, no executable
+npm run typecheck  # tsc --noEmit
+npm run dev        # ts-node, standalone on :6900
+```
+
+If `bin/` is empty but `build/sidecar.cjs` exists, `IQHost` falls back to
+running the bundle through a local `node`, so you can iterate from the editor
+without a full build.
+
+## Security model
+
+The process holds funded signers, so:
+
+- **Loopback only.** It binds `127.0.0.1` on an ephemeral port chosen by the
+  host, not `0.0.0.0:6900`.
+- **No CORS headers.** Combined with the required bearer token, a page in the
+  user's browser cannot drive it.
+- **Every route needs a token** except `GET /health`.
+- **Scopes.** `read` covers `/read`, `/metadata`, `/db/*` reads and `/han_*` —
+  no key material, no cost. `write` covers `/write` and the DB writers.
+  `control` is the host's alone.
+- **Writes without `write` are not rejected, they are parked.** The request
+  waits while GodOnChain asks the user, then proceeds or fails on their
+  answer. The caller's protocol is unchanged: it still polls `/progress`.
+  Prompts expire after 5 minutes and default to denied.
+- **Watchdog.** `--parent-pid` makes it exit on its own if the host dies
+  without reaping it, so it never lingers holding keys.
+
+Keys come from the environment at spawn (`SOLANA_SIGNER_PRIVATE_KEY`,
+`MON_SIGNER_PRIVATE_KEY`, `HANLOCK_PASS`, and the two RPC URLs). GodOnChain
+keeps them in an encrypted vault under `user://`, opened with a master
+password the user chooses, and sets them in the environment just long enough
+to spawn this process. Callers never send or see a key.
+
+The vault is `user://iq_secrets.cfg`, written with Godot's encrypted container
+under a key stretched from the master password with PBKDF2-HMAC-SHA256 (100k
+iterations, salt in `user://iq_secrets.salt`). The stretching matters: Godot
+hashes a passphrase straight to an AES key, which is too weak for something a
+person types. Unlocking is optional, since reads need no key — declining
+leaves the app in a read-only session.
+
+## Arguments
+
+| Flag | Meaning |
+|---|---|
+| `--port N` | Port to bind. Defaults to `IQ_SIDECAR_PORT`, then 6900. |
+| `--token T` | The control token. Without it, runs standalone and prints one. |
+| `--parent-pid N` | Exit if that process disappears. |
+| `--discovery-file P` | Delete this file on exit, so apps do not chase a dead port. |
+
+On startup it prints `IQ_SIDECAR_READY {"port":N,"pid":N}`.
+
+## Control plane
+
+Host-only, requires the `control` scope.
+
+| Route | Purpose |
+|---|---|
+| `POST /control/tokens` | Mint a scoped token for an app being launched. |
+| `GET /control/tokens` | List issued tokens. |
+| `DELETE /control/tokens/:id` | Revoke one, e.g. when its app exits. |
+| `GET /control/approvals` | Prompts waiting on the user. |
+| `POST /control/approvals/:id` | `{decision: "allow"\|"deny", remember: bool}` |
+
+`remember` widens that token's scopes for the rest of the session.
+
+The data routes (`/read`, `/write`, `/metadata`, `/progress`, `/db/*`,
+`/han_*`) are unchanged from the original wrapper apart from requiring a
+token; see that repo's README for their payloads.
+
+## Testing
+
+```bash
+Godot --headless --path . --script res://tools/iq_selftest.gd
+```
+
+Exercises the vault (save, lock, wrong password, unlock, round-trip), the
+sidecar lifecycle, token minting and revocation, and the full write-approval
+round-trip. Exits non-zero on failure.
+
+## Upstream
+
+`server.ts` and `helpers.ts` came from
+`iqlabs-solana-sdk-local-server-wrapper`. To pull in a newer IQ SDK, bump
+`@iqlabs-official/solana-sdk` / `@iqlabs-official/ethereum-sdk` in
+`package.json`, reinstall, and rebuild. No protocol logic is duplicated in
+GDScript, so there is nothing else to keep in sync.

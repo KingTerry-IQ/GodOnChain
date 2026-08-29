@@ -5,6 +5,9 @@ const PBKDF2_ITERATIONS := 100_000
 const SALT_SIZE := 16
 const KEY_SIZE := 32
 
+## Set by IQ_SDK. HanLock runs on the host, which holds the passphrase.
+var client: IQClient
+
 static var _crypto: Crypto = Crypto.new()
 static var _aes: AESContext = AESContext.new()
 
@@ -134,87 +137,28 @@ func _han_encrypt(input: String) -> String:
 	if input.is_empty():
 		push_error("Cannot encrypt empty string")
 		return ""
-
-	var http_request: HTTPRequest = HTTPRequest.new()
-	add_child(http_request)
-
-	var url: String = "http://localhost:6900/han_encrypt"
-
-	var body_dict: Dictionary = {
-		"data": input,
-	}
-	var body_string: String = JSON.stringify(body_dict)
-	var headers: PackedStringArray = PackedStringArray(["Content-Type: application/json"])
-
-	var error: Error = http_request.request(url, headers, HTTPClient.METHOD_POST, body_string)
-	if error != OK:
-		push_error("HTTP request failed: %s" % error)
-		http_request.queue_free()
+	if client == null:
+		push_error("HanLock needs the on-chain host, which is not running.")
 		return ""
 
-	var response = await http_request.request_completed
-	http_request.queue_free()
+	var encoded: String = await client.han_encrypt(input)
+	if encoded.is_empty():
+		push_error("HanLock encrypt failed: " + client.last_error)
+	return encoded
 
-	var result: int = response[0]
-	var response_code: int = response[1]
-	#var headers_resp: PackedStringArray = response[2]
-	var body: PackedByteArray = response[3]
 
-	if result != HTTPRequest.RESULT_SUCCESS:
-		push_error("Request failed with result: %s" % result)
-		return ""
-
-	if response_code != 200:
-		var error_msg = body.get_string_from_utf8()
-		push_error("Server error %d: %s" % [response_code, error_msg])
-		return ""
-
-	var body_str = body.get_string_from_utf8()
-	
-	return body_str
-	
 func _han_decrypt(input: String) -> String:
 	if input.is_empty():
-		push_error("Cannot encrypt empty string")
+		push_error("Cannot decrypt empty string")
+		return ""
+	if client == null:
+		push_error("HanLock needs the on-chain host, which is not running.")
 		return ""
 
-	var http_request: HTTPRequest = HTTPRequest.new()
-	add_child(http_request)
-
-	var url: String = "http://localhost:6900/han_decrypt"
-
-	var body_dict: Dictionary = {
-		"data": input,
-	}
-	var body_string: String = JSON.stringify(body_dict)
-	var headers: PackedStringArray = PackedStringArray(["Content-Type: application/json"])
-
-	var error: Error = http_request.request(url, headers, HTTPClient.METHOD_POST, body_string)
-	if error != OK:
-		push_error("HTTP request failed: %s" % error)
-		http_request.queue_free()
-		return ""
-
-	var response = await http_request.request_completed
-	http_request.queue_free()
-
-	var result: int = response[0]
-	var response_code: int = response[1]
-	#var headers_resp: PackedStringArray = response[2]
-	var body: PackedByteArray = response[3]
-
-	if result != HTTPRequest.RESULT_SUCCESS:
-		push_error("Request failed with result: %s" % result)
-		return ""
-
-	if response_code != 200:
-		var error_msg = body.get_string_from_utf8()
-		push_error("Server error %d: %s" % [response_code, error_msg])
-		return ""
-
-	var body_str = body.get_string_from_utf8()
-
-	return body_str
+	var decoded: String = await client.han_decrypt(input)
+	if decoded.is_empty():
+		push_error("HanLock decrypt failed: " + client.last_error)
+	return decoded
 
 #endregion
 

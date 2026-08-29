@@ -1,3 +1,10 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Bundled IQ sidecar: build artifacts and the compiled binary are produced by
+# `cd sidecar && npm install && node build.mjs`, not committed.
+sidecar/node_modules/
+sidecar/build/
+sidecar/bin/
+sidecar/.env
