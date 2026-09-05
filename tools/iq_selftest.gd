@@ -8,6 +8,7 @@ var failures := 0
 ## opened, written or deleted by a test run.
 const TEST_SECRETS := "user://selftest_secrets.cfg"
 const TEST_SALT := "user://selftest_secrets.salt"
+const TEST_DISCOVERY := "user://selftest_host.json"
 
 
 func _clear_test_vault() -> void:
@@ -92,6 +93,11 @@ func _run() -> void:
 	# files hold real signing keys; a suite must never go near the real ones.
 	host.secrets_path = TEST_SECRETS
 	host.salt_path = TEST_SALT
+	# And the discovery file, for the same reason. Publishing this suite's own
+	# sidecar at the real location, then deleting it on teardown, cuts a
+	# running GodOnChain off from every app that was talking to it — the app
+	# stays up and healthy while nothing on the machine can find it any more.
+	host.discovery_file = TEST_DISCOVERY
 	_clear_test_vault()
 
 	root.add_child(host)
@@ -134,12 +140,30 @@ func _run() -> void:
 		check("bound to loopback", host.base_url.begins_with("http://127.0.0.1:"), host.base_url)
 		check("has a control token", host.control_token.length() == 64)
 
-		var discovery := IQClient.discovery_path()
+		var discovery := host.discovery_path()
 		check("discovery file published", FileAccess.file_exists(discovery), discovery)
+		check("  and not at the real host's location",
+			discovery != IQHost.default_discovery_path())
+		check("  leaving a real host's file alone",
+			not FileAccess.file_exists(IQHost.default_discovery_path())
+			or FileAccess.get_md5(IQHost.default_discovery_path()) != FileAccess.get_md5(discovery))
 
-		var minted: Dictionary = await host.mint_app_token("selftest.pck")
-		check("mints an app token", minted.has("token"), str(minted))
-		check("app token is read-only", str(minted.get("scopes", [])).contains("read"))
+		var bare: Dictionary = await host.mint_app_token("selftest-bare.pck")
+		check("mints an app token", bare.has("token"), str(bare))
+		# A scope is a standing "stop asking me", so a fresh app holds none:
+		# every kind of access it wants is a question the user gets to answer.
+		check("  holding no standing grants", (bare.get("scopes", []) as Array).is_empty(),
+			str(bare.get("scopes", [])))
+
+		# The rest of this suite exercises the plumbing, not the prompt, so it
+		# uses a token that has already been granted reads. The read prompt has
+		# its own end-to-end coverage in sidecar/tests/readgate.mjs, which needs
+		# a second process to answer the prompt while a request is parked.
+		var minted: Dictionary = await host.mint_app_token(
+			"selftest.pck", PackedStringArray(["read"])
+		)
+		check("  and can be minted with reads already allowed",
+			str(minted.get("scopes", [])).contains("read"), str(minted.get("scopes", [])))
 
 		print("\n--- client ---")
 		var client := IQClient.new()
@@ -280,6 +304,8 @@ func _run() -> void:
 			client.last_error
 		)
 
+		await _test_own_token(host)
+
 		print("")
 		var revoked: bool = await host.revoke_app_token(str(minted.get("id", "")))
 		check("revokes the app token", revoked)
@@ -296,6 +322,7 @@ func _run() -> void:
 	_clear_test_vault()
 
 	_test_chime()
+	_test_costs()
 
 	print("\n%d failure(s)" % failures)
 	quit(1 if failures > 0 else 0)
@@ -345,3 +372,71 @@ func _test_chime() -> void:
 	# It must not be silenceable: the request may have arrived while the user
 	# was looking at another window entirely.
 	check("there is no mute for it", not (chime as Object).has_method("set_enabled"))
+
+
+func _test_own_token(host: IQHost) -> void:
+	print("\n--- GodOnChain is not a guest ---")
+
+	# Our own screens act for the user, so they never stop to ask the user.
+	var own: Dictionary = await host.mint_own_token()
+	var scopes := str(own.get("scopes", []))
+	check("our own token is minted", own.has("token"), str(own))
+	check("  granted reads outright", scopes.contains("read"), scopes)
+	check("  and writes", scopes.contains("write"), scopes)
+	check("  and opening what is addressed to us", scopes.contains("reveal"), scopes)
+
+	# But not the control plane: a bug in our database screens must not be able
+	# to mint tokens or answer approval prompts on the user's behalf.
+	check("  but not control of the host itself", not scopes.contains("control"), scopes)
+
+	# A guest gets the opposite: nothing, until the user says otherwise.
+	var guest: Dictionary = await host.mint_app_token("a-guest.pck")
+	check("a guest app is granted nothing",
+		(guest.get("scopes", []) as Array).is_empty(), str(guest.get("scopes", [])))
+	check("  so its reads and writes both reach the user",
+		str(guest.get("token", "")) != str(own.get("token", "")))
+
+	# The anonymous token published for apps we did not launch is the least
+	# identifiable caller of all, so it is certainly not the one to exempt.
+	var published := {}
+	var file := FileAccess.open(host.discovery_file, FileAccess.READ)
+	if file != null:
+		var parsed: Variant = JSON.parse_string(file.get_as_text())
+		file.close()
+		if parsed is Dictionary:
+			published = parsed
+	check("the discovery file offers a token", published.has("token"), str(published.keys()))
+	check("  which is not ours", str(published.get("token", "")) != str(own.get("token", "")))
+
+
+func _test_costs() -> void:
+	print("\n--- one cost model ---")
+
+	# The prompt quotes a price before the user says yes and the log quotes one
+	# after. A different number in each place is worse than quoting neither.
+	check("solana is priced per small chunk", IQCosts.estimate("sol", 0) > 0.0)
+	check("  and a payload-free write still pays", IQCosts.estimate("sol", 0) >= IQCosts.SOL_FINAL_TX)
+	check("  with a bigger payload costing more",
+		IQCosts.estimate("sol", 100_000) > IQCosts.estimate("sol", 1000))
+
+	check("monad is recognised by prefix",
+		IQCosts.is_monad("mon") and IQCosts.is_monad("MONAD") and not IQCosts.is_monad("sol"))
+	check("  and priced per much larger chunk",
+		IQCosts.estimate("mon", 1000) == IQCosts.estimate("mon", 60_000),
+		"%f vs %f" % [IQCosts.estimate("mon", 1000), IQCosts.estimate("mon", 60_000)])
+	check("  crossing a chunk boundary costs more",
+		IQCosts.estimate("mon", 80_000) > IQCosts.estimate("mon", 60_000))
+
+	# Each chain at the precision it deserves: fractions of a SOL are
+	# meaningful at six places, fractions of a MON are not.
+	check("solana formats to six places", IQCosts.format("sol", 0).contains("SOL"),
+		IQCosts.format("sol", 0))
+	check("monad formats to four", IQCosts.format("mon", 0).contains("MON"),
+		IQCosts.format("mon", 0))
+	check("  both marked as estimates", IQCosts.format("sol", 0).begins_with("~")
+		and IQCosts.format("mon", 0).begins_with("~"))
+
+	# Negative bytes cannot happen, but a cost model that returns a negative
+	# price if they did would be quoting the user a refund.
+	check("a nonsense size still prices the base transaction",
+		IQCosts.estimate("sol", -50) == IQCosts.estimate("sol", 0))

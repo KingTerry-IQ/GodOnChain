@@ -38,6 +38,10 @@ func _run() -> void:
 	# Disposable vault: the real keys are never touched by a test.
 	host.secrets_path = "user://apptest_secrets.cfg"
 	host.salt_path = "user://apptest_secrets.salt"
+	# Disposable discovery file too — publishing at the real location would
+	# point every app on the machine at this suite's sidecar, and removing it
+	# on teardown would leave a running GodOnChain undiscoverable.
+	host.discovery_file = "user://apptest_host.json"
 	root.add_child(host)
 	await process_frame
 	host.approval_requested.connect(_capture)

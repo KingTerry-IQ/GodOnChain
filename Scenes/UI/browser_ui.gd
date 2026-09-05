@@ -92,6 +92,10 @@ func _ready() -> void:
 	# The bundled on-chain service. Apps launched from here share this one
 	# instance, so it comes up with the app rather than on demand.
 	iq_sdk.attach_ui(self)
+	# Docked at the bottom of the main column rather than hidden behind a
+	# button: this process holds signing keys and serves apps the user
+	# downloaded, and a record nobody looks at is not accountability.
+	iq_sdk.attach_activity($Panel/MarginContainer/MainVBox)
 	iq_sdk.backend_failed.connect(_on_backend_failed)
 	await _start_backend()
 

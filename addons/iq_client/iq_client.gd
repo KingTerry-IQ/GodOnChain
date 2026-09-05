@@ -82,7 +82,18 @@ static func discovery_path() -> String:
 
 ## Locates a host and confirms it is answering. Returns false and sets
 ## last_error if there is nothing to talk to.
-func discover() -> bool:
+## `claim_name` is what to call this app in approval prompts when we had to
+## find the host ourselves.
+##
+## An app GodOnChain launched is already named by GodOnChain and this is
+## ignored. An app that found the host on its own otherwise shares one
+## "Unidentified app" token with every other such app — so the user is asked to
+## approve a spend for something the prompt cannot name, and two of them are
+## indistinguishable from each other.
+##
+## The name is a claim, not a credential: nothing verifies it, and the prompt
+## shows it as self-declared. It buys identity, not trust.
+func discover(claim_name: String = "") -> bool:
 	_available = false
 	last_error = ""
 
@@ -98,6 +109,11 @@ func discover() -> bool:
 
 	if _load_discovery_file():
 		if await _confirm_health():
+			# Swap the shared anonymous token for one of our own, so prompts and
+			# the activity log can name us. Failure is not fatal: we simply stay
+			# anonymous, which is how this worked before.
+			if not claim_name.strip_edges().is_empty():
+				await _claim_name(claim_name.strip_edges())
 			return true
 
 	if last_error.is_empty():
@@ -107,6 +123,38 @@ func discover() -> bool:
 		)
 	host_missing.emit(last_error)
 	return false
+
+
+## Attaches to a known host with a known token, skipping discovery entirely.
+##
+## For a caller that already *is* the host — GodOnChain's own screens — rather
+## than a guest app that has to go looking. A guest should keep using
+## discover(): it has no business being handed a token it did not earn.
+func attach_directly(url: String, bearer: String, label: String = "") -> bool:
+	_available = false
+	last_error = ""
+	if url.is_empty() or bearer.is_empty():
+		last_error = "No host url or token to attach with."
+		return false
+	base_url = url.rstrip("/")
+	token = bearer
+	app_label = label
+	return await _confirm_health()
+
+
+## Asks the host for a private token labelled with our own name.
+func _claim_name(name: String) -> void:
+	var response: Dictionary = await _request("POST", "/session", {}, {"name": name})
+	if not response.get("ok", false):
+		return
+	var data: Variant = response.get("data")
+	if not data is Dictionary:
+		return
+	var granted := str((data as Dictionary).get("token", ""))
+	if granted.is_empty():
+		return
+	token = granted
+	app_label = str((data as Dictionary).get("label", name))
 
 
 func is_available() -> bool:
@@ -213,7 +261,8 @@ func read_db_table_rows(
 	chain: String = "sol",
 	limit: int = 20,
 	before: String = "",
-	progress_callback: Callable = Callable()
+	progress_callback: Callable = Callable(),
+	with_signers: bool = false
 ) -> Dictionary:
 	var normalized := _normalize_chain(chain)
 	var query := {"chain": normalized}
@@ -234,6 +283,11 @@ func read_db_table_rows(
 		query["limit"] = str(limit)
 	if not before.is_empty():
 		query["before"] = before
+	# Costs a transaction lookup per signature, so it is asked for rather than
+	# assumed. Rows come back with "__signer": who actually signed for them,
+	# which is the only claim about authorship a table cannot forge.
+	if with_signers:
+		query["withSigners"] = "true"
 
 	var started: Dictionary = await _request("GET", "/db/readTableRows", query)
 	var result: Variant = await _follow_job(started, progress_callback)
@@ -661,6 +715,11 @@ func _request(
 	if err != OK:
 		http.queue_free()
 		last_error = "Could not reach the host (error %d)." % err
+		# The other failure path clears this; leaving it set here meant a host
+		# that vanished before the request even left could keep us believing
+		# we were still attached.
+		_available = false
+		host_missing.emit(last_error)
 		return {"ok": false, "code": 0, "error": last_error}
 
 	var result: Array = await http.request_completed

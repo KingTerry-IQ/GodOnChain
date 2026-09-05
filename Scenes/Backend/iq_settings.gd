@@ -16,31 +16,57 @@ signal settings_saved
 ## The unlock screen was resolved, either way.
 signal unlock_finished(unlocked: bool)
 
-const FIELDS := [
+## Grouped by what each is for, because the honest answer to "which of these do
+## I need" is "it depends what you are doing" — and a flat list of five secrets
+## makes that look like five requirements.
+##
+## The qualifier lives in the heading rather than a paragraph beneath it. Each
+## group needs one sentence, and a separate note per group cost three more rows
+## of a panel that has to fit on screen without scrolling.
+const FIELD_GROUPS := [
 	{
-		"key": "SOLANA_RPC_URL",
-		"label": "SOL RPC URL:",
-		"hint": "blank = https://api.mainnet-beta.solana.com",
+		"heading": (
+			"ENDPOINTS — optional, but recommended. Blank uses shared public ones, "
+			+ "which stall under load rather than failing outright. A free Helius "
+			+ "or Alchemy tier is plenty."
+		),
+		"fields": [
+			{
+				"key": "SOLANA_RPC_URL",
+				"label": "SOL RPC URL:",
+				"hint": "blank = api.mainnet-beta.solana.com",
+			},
+			{
+				"key": "MONAD_RPC_URL",
+				"label": "MON RPC URL:",
+				"hint": "blank = rpc.monad.xyz",
+			},
+		],
 	},
 	{
-		"key": "SOLANA_SIGNER_PRIVATE_KEY",
-		"label": "SOL signer key:",
-		"hint": "base58. Needed only to inscribe on SOL.",
+		"heading": "SIGNING KEYS — only needed to write, and only on the chain you write to.",
+		"fields": [
+			{
+				"key": "SOLANA_SIGNER_PRIVATE_KEY",
+				"label": "SOL signer key:",
+				"hint": "base58 — also opens messages addressed to you",
+			},
+			{
+				"key": "MON_SIGNER_PRIVATE_KEY",
+				"label": "MON signer key:",
+				"hint": "0x-prefixed hex",
+			},
+		],
 	},
 	{
-		"key": "MONAD_RPC_URL",
-		"label": "MON RPC URL:",
-		"hint": "blank = https://rpc.monad.xyz",
-	},
-	{
-		"key": "MON_SIGNER_PRIVATE_KEY",
-		"label": "MON signer key:",
-		"hint": "0x-prefixed hex. Needed only to inscribe on MON.",
-	},
-	{
-		"key": "HANLOCK_PASS",
-		"label": "HanLock pass:",
-		"hint": "Used by the HanLock encryption option.",
+		"heading": "HANLOCK — only for the HanLock encryption option.",
+		"fields": [
+			{
+				"key": "HANLOCK_PASS",
+				"label": "HanLock pass:",
+				"hint": "optional",
+			},
+		],
 	},
 ]
 
@@ -95,24 +121,22 @@ func is_unconfigured() -> bool:
 
 func _build_keys_panel(root: Control) -> void:
 	var box := IQOverlay.make(root, PANEL_WIDTH)
+	box.add_theme_constant_override("separation", 6)
 	_keys_panel = box.get_meta("panel")
 
 	box.add_child(IQOverlay.title("— KEYS —"))
 	box.add_child(
 		IQOverlay.note(
-			(
-				"Held by GodOnChain and passed to the local on-chain service. "
-				+ "Stored encrypted on this machine, never sent anywhere else. "
-				+ "Apps you launch never see them: they ask, and you approve."
-			)
+			"Encrypted on this machine and never sent anywhere. Apps never see "
+			+ "them: they ask, and you approve."
 		)
 	)
-	box.add_child(HSeparator.new())
-
-	for field: Dictionary in FIELDS:
-		_inputs[str(field["key"])] = IQOverlay.row(
-			box, str(field["label"]), str(field["hint"])
-		)
+	for group: Dictionary in FIELD_GROUPS:
+		box.add_child(IQOverlay.section(str(group["heading"])))
+		for field: Dictionary in group["fields"]:
+			_inputs[str(field["key"])] = IQOverlay.row(
+				box, str(field["label"]), str(field["hint"])
+			)
 
 	box.add_child(HSeparator.new())
 

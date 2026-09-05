@@ -33,8 +33,20 @@ static func make(root: Control, width: int) -> VBoxContainer:
 		margin.add_theme_constant_override("margin_" + side, MARGIN)
 	panel.add_child(margin)
 
+	# Scrolls when it has to. A panel that outgrows the window otherwise pushes
+	# its own buttons off the bottom, and an unreachable Save is a worse
+	# failure than a scrollbar. Short panels still centre, because the box is
+	# stretched to fill whenever there is room for it.
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.add_child(scroll)
+
 	var center := CenterContainer.new()
-	margin.add_child(center)
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.add_child(center)
 
 	var box := VBoxContainer.new()
 	box.custom_minimum_size = Vector2(width, 0)
@@ -60,6 +72,18 @@ static func note(text: String) -> Label:
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.modulate = Color(0, 1, 0, 0.6)
+	return label
+
+
+## A heading inside a panel, for grouping fields by what they are for.
+##
+## Brighter than a note and quieter than a title: a reader scanning for "which
+## of these do I actually need" should find these first.
+static func section(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.modulate = Color(0.6, 1.0, 0.6)
 	return label
 
 

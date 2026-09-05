@@ -21,8 +21,10 @@ import { extractIQLabsMetadataFromTx, extractMonadMetadata, getNormalizedChain, 
 import {
   authenticate,
   denyAllApprovals,
+  listActivity,
   listApprovals,
   listTokens,
+  recordActivity,
   registerToken,
   requestApproval,
   requireScope,
@@ -61,7 +63,7 @@ const hostToken = registerToken(
   "GodOnChain (host)",
   ["read", "write", "reveal", "control"],
   HOST_TOKEN,
-);
+)!;
 
 // === RPC URLs ===
 const solanaRpcUrl = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
@@ -94,11 +96,15 @@ app.post("/control/tokens", requireScope("control"), (req: Request, res: Respons
   if (!label || typeof label !== "string") {
     return res.status(400).json({ error: "Missing label" });
   }
-  const requested: Scope[] = Array.isArray(scopes) && scopes.length ? scopes : ["read"];
+  // No standing grants by default. A token minted holding `read` never
+  // reaches the broker, so the user is never asked — which is exactly how
+  // reads used to happen silently.
+  const requested: Scope[] = Array.isArray(scopes) ? scopes : [];
   if (requested.includes("control")) {
     return res.status(403).json({ error: "Refusing to mint a control token" });
   }
   const record = registerToken(label, requested as Scope[]);
+  if (!record) return res.status(429).json({ error: "Too many tokens" });
   res.json({ id: record.id, token: record.token, scopes: [...record.scopes] });
 });
 
@@ -110,6 +116,42 @@ app.delete("/control/tokens/:id", requireScope("control"), (req: Request, res: R
   const ok = revokeToken(String(req.params.id));
   if (!ok) return res.status(404).json({ error: "Unknown token id" });
   res.json({ revoked: String(req.params.id) });
+});
+
+/**
+ * What apps have been asking for, oldest first.
+ *
+ * `after` is the last sequence number the caller already has, so the host can
+ * poll for just what is new. Control scope: it names every app and everything
+ * they touched, which is the user's business and nobody else's.
+ */
+app.get("/control/activity", requireScope("control"), (req: Request, res: Response) => {
+  const after = Number(req.query.after ?? 0);
+  res.json({ activity: listActivity(Number.isFinite(after) ? after : 0) });
+});
+
+/**
+ * Trades the shared anonymous token for a private one bearing a name.
+ *
+ * Apps GodOnChain launches are named by GodOnChain. Apps that find the host on
+ * their own share a single "Unidentified app" token, so the user is asked to
+ * approve spends for something the prompt cannot name — and worse, two such
+ * apps are indistinguishable from each other and from one another's grants.
+ *
+ * Any authenticated caller may ask, and the result is always marked declared:
+ * the name is the app's own claim and nothing verifies it. An app can call
+ * itself anything, including "GodOnChain", which is exactly why the prompt
+ * shows a claimed name differently from an assigned one.
+ *
+ * No scopes come with it. Naming yourself earns identity, not trust.
+ */
+app.post("/session", (req: Request, res: Response) => {
+  const name = String(req.body?.name ?? "").trim().slice(0, 48);
+  if (!name) return res.status(400).json({ error: "Missing name" });
+
+  const record = registerToken(name, [], undefined, true);
+  if (!record) return res.status(429).json({ error: "Too many app sessions" });
+  res.json({ id: record.id, token: record.token, label: record.label, declared: true });
 });
 
 /** Prompts the host is expected to surface to the user. */
@@ -131,9 +173,30 @@ const gate =
     } catch {
       details = {};
     }
-    const { approved, approvalId } = requestApproval(req.iqToken!, scope, action, details);
-    if (!approvalId) return next();
-    if (await approved) return next();
+    // Always await the answer. An earlier version short-circuited on "no
+    // approval id", taking that to mean the caller already held the scope —
+    // but a standing refusal also resolves without an id, and so sailed
+    // through the gate it was supposed to close.
+    const token = req.iqToken!;
+    const asked = !token.scopes.has(scope) && !token.blocked.has(scope);
+    const { approved } = requestApproval(token, scope, action, details);
+    const allowed = await approved;
+
+    // Logged whichever way it went. A standing grant is the case worth seeing
+    // most: it raises no prompt, so without this it would be invisible.
+    recordActivity({
+      label: token.label,
+      scope,
+      action,
+      chain: String(details.chain ?? ""),
+      bytes: Number(details.bytes ?? 0),
+      subject: String(
+        details.tableName ?? details.dbRootId ?? details.signature ?? details.filename ?? "",
+      ),
+      outcome: allowed ? (asked ? "allowed" : "granted") : asked ? "denied" : "blocked",
+    });
+
+    if (allowed) return next();
     return res.status(403).json({ error: "Denied by the user", action, details });
   };
 
@@ -153,7 +216,7 @@ let squaringRate = 0;
 /** Solving pins a core for as long as it takes, so only one runs at a time. */
 let solving = false;
 
-app.get("/timelock/rate", requireScope("read"), (_req: Request, res: Response) => {
+app.get("/timelock/rate", (_req: Request, res: Response) => {
   try {
     if (!squaringRate) squaringRate = timelock.benchmark();
     res.json({ squaringsPerSecond: squaringRate });
@@ -166,7 +229,7 @@ app.get("/timelock/rate", requireScope("read"), (_req: Request, res: Response) =
  * Builds a puzzle around a secret. Instant, because the maker holds the
  * trapdoor — which is discarded before this returns.
  */
-app.post("/timelock/create", requireScope("read"), (req: Request, res: Response) => {
+app.post("/timelock/create", (req: Request, res: Response) => {
   try {
     const { secret, seconds } = req.body ?? {};
     if (typeof secret !== "string" || !/^[0-9a-fA-F]+$/.test(secret) || secret.length % 2) {
@@ -189,7 +252,7 @@ app.post("/timelock/create", requireScope("read"), (req: Request, res: Response)
  * Solves a puzzle. This is deliberately slow — that is the entire product — so
  * it runs as a job and reports progress like any other long operation.
  */
-app.post("/timelock/solve", requireScope("read"), (req: Request, res: Response) => {
+app.post("/timelock/solve", (req: Request, res: Response) => {
   const { puzzle } = req.body ?? {};
   if (!timelock.isPuzzle(puzzle)) {
     return res.status(400).json({ error: "That is not a time-lock puzzle" });
@@ -264,7 +327,10 @@ const ourIdentity = async () => {
  * because a failed write is otherwise unreadable — an empty account and a
  * genuine bug produce the same "simulation failed".
  */
-app.get("/wallet", requireScope("read"), async (_req: Request, res: Response) => {
+app.get(
+  "/wallet",
+  gate("read", "readWallet", () => ({})),
+ async (_req: Request, res: Response) => {
   const out: Record<string, unknown> = {};
 
   const solKey = process.env.SOLANA_SIGNER_PRIVATE_KEY;
@@ -304,7 +370,7 @@ app.get("/wallet", requireScope("read"), async (_req: Request, res: Response) =>
 
 /** This signer's public encryption identity. Safe to publish; others use it
  *  to encrypt things only this wallet can open. */
-app.get("/crypto/identity", requireScope("read"), async (_req: Request, res: Response) => {
+app.get("/crypto/identity", async (_req: Request, res: Response) => {
   try {
     const identity = await ourIdentity();
     res.json({ publicKey: identity.pubKey });
@@ -315,7 +381,7 @@ app.get("/crypto/identity", requireScope("read"), async (_req: Request, res: Res
 
 /** Encrypts to one or more recipients' public identities. Needs no secret of
  *  ours, so it is an ordinary read-scope call. */
-app.post("/crypto/encryptTo", requireScope("read"), async (req: Request, res: Response) => {
+app.post("/crypto/encryptTo", async (req: Request, res: Response) => {
   try {
     const { recipients, data } = req.body ?? {};
     if (!Array.isArray(recipients) || recipients.length === 0) {
@@ -379,7 +445,13 @@ app.post("/control/approvals/:id", requireScope("control"), (req: Request, res: 
 });
 
 // ==================== READ ====================
-app.get("/read", requireScope("read"), (req: Request, res: Response) => {
+app.get(
+  "/read",
+  gate("read", "readCodeIn", (req) => ({
+    chain: getNormalizedChain((req.query.chain as string) ?? "sol"),
+    signature: req.query.signature ?? null,
+  })),
+ (req: Request, res: Response) => {
   const { signature, chain } = req.query as { signature?: string; chain?: string };
 
   if (!signature) {
@@ -553,7 +625,13 @@ app.post(
 });
 
 // ==================== METADATA ====================
-app.get("/metadata", requireScope("read"), async (req: Request, res: Response) => {
+app.get(
+  "/metadata",
+  gate("read", "readMetadata", (req) => ({
+    chain: getNormalizedChain((req.query.chain as string) ?? "sol"),
+    signature: req.query.signature ?? null,
+  })),
+ async (req: Request, res: Response) => {
   const { signature, chain } = req.query as { signature?: string; chain?: string };
 
   if (!signature) {
@@ -641,7 +719,7 @@ app.get("/metadata", requireScope("read"), async (req: Request, res: Response) =
 });
 
 // ==================== PROGRESS ====================
-app.get("/progress", requireScope("read"), (req: Request, res: Response) => {
+app.get("/progress", (req: Request, res: Response) => {
   const { jobId } = req.query as { jobId?: string };
 
   if (!jobId || !jobs.has(jobId)) {
@@ -665,7 +743,7 @@ app.get("/progress", requireScope("read"), (req: Request, res: Response) => {
 });
 
 // ==================== HANLOCK ====================
-app.post("/han_encrypt", requireScope("read"), async (req: Request, res: Response) => {
+app.post("/han_encrypt", async (req: Request, res: Response) => {
   try {
     const { data } = req.body;
     if (!data) return res.status(400).json({ error: "Missing data" });
@@ -680,7 +758,10 @@ app.post("/han_encrypt", requireScope("read"), async (req: Request, res: Respons
   }
 });
 
-app.post("/han_decrypt", requireScope("read"), async (req: Request, res: Response) => {
+app.post(
+  "/han_decrypt",
+  gate("reveal", "hanDecrypt", () => ({})),
+  async (req: Request, res: Response) => {
   try {
     const { data } = req.body;
     if (!data) return res.status(400).json({ error: "Missing data" });
@@ -827,6 +908,60 @@ const describeChainError = (err: any): string => {
  * genuine judgement about affordability to the chain.
  */
 const SOL_DUST_LAMPORTS = 2_000_000; // 0.002 SOL
+
+/**
+ * Attaches the transaction signer to each row, as `__signer`.
+ *
+ * Who signed a row is the only trustworthy statement of who wrote it. A row's
+ * own fields are written by whoever sent the transaction and can claim
+ * anything; the signature cannot. This is what lets a reader tell a keeper's
+ * own proof-of-life from a row a stranger wrote into the same table — which
+ * matters for any table created without a writer list, since those accept a
+ * row from anybody.
+ *
+ * Costs one transaction fetch per distinct signature, so it is opt-in rather
+ * than always-on. Rows whose signature cannot be resolved get a null signer
+ * and are left for the caller to judge; guessing would defeat the point.
+ */
+const attachSigners = async (
+  rows: any[],
+  chain: "sol" | "mon",
+): Promise<any[]> => {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+
+  const signatureOf = (row: any): string =>
+    String(row?.__txSignature ?? row?.signature ?? row?.txHash ?? "").trim();
+
+  // One lookup per signature: a chunked write puts many rows behind one.
+  const cache = new Map<string, string | null>();
+  const provider = chain === "mon" ? new JsonRpcProvider(monadRpcUrl) : null;
+
+  for (const row of rows) {
+    const signature = signatureOf(row);
+    if (!signature) continue;
+    if (!cache.has(signature)) {
+      let signer: string | null = null;
+      try {
+        if (chain === "mon") {
+          signer = (await provider!.getTransaction(signature))?.from ?? null;
+        } else {
+          const tx = await solanaConnection.getTransaction(signature, {
+            maxSupportedTransactionVersion: 0,
+          });
+          // The fee payer is the first static key, and is always a signer.
+          signer =
+            tx?.transaction.message.getAccountKeys().staticAccountKeys[0]?.toBase58() ?? null;
+        }
+      } catch {
+        signer = null;
+      }
+      cache.set(signature, signer);
+    }
+    row.__signer = cache.get(signature) ?? null;
+  }
+
+  return rows;
+};
 
 /**
  * Makes sure a Solana db_root account exists before anything hangs off it.
@@ -1176,9 +1311,18 @@ app.post(
 });
 
 // --- readTableRows ---
-app.get("/db/readTableRows", requireScope("read"), async (req: Request, res: Response) => {
+app.get(
+  "/db/readTableRows",
+  gate("read", "readTableRows", (req) => ({
+    chain: getNormalizedChain((req.query.chain as string) ?? "sol"),
+    dbRootId: req.query.dbRootId ?? null,
+    tableName: req.query.tableName ?? req.query.account ?? null,
+  })),
+ async (req: Request, res: Response) => {
   const query = req.query as any;
   const { chain = "sol", dbRootId, tableName, tablePda, limit, before, speed, signatures } = query;
+  // Opt-in: resolving signers costs a transaction fetch per signature.
+  const wantSigners = String(query.withSigners ?? "").toLowerCase() === "true";
 
   let normalizedChain: "sol" | "mon";
   try {
@@ -1205,7 +1349,8 @@ app.get("/db/readTableRows", requireScope("read"), async (req: Request, res: Res
 
         console.log(`[MON][readTableRows] db="${dbRootId}" table="${tableName}" limit=${limit || "all"}`);
 
-        const rows = await ethIqlabs.reader.readTableRows(dbRootId.trim(), tableName.trim(), options);
+        let rows = await ethIqlabs.reader.readTableRows(dbRootId.trim(), tableName.trim(), options);
+        if (wantSigners) rows = await attachSigners(rows as any[], "mon");
 
         const job = jobs.get(jobId);
         if (job) {
@@ -1241,6 +1386,8 @@ app.get("/db/readTableRows", requireScope("read"), async (req: Request, res: Res
           rows = await tolerantSolDbRows(solanaIqlabs, tablePda, options);
         }
 
+        if (wantSigners) rows = await attachSigners(rows as any[], "sol");
+
         const job = jobs.get(jobId);
         if (job) {
           job.status = "completed";
@@ -1262,7 +1409,13 @@ app.get("/db/readTableRows", requireScope("read"), async (req: Request, res: Res
 });
 
 // --- getTablelistFromRoot ---
-app.get("/db/getTablelistFromRoot", requireScope("read"), async (req: Request, res: Response) => {
+app.get(
+  "/db/getTablelistFromRoot",
+  gate("read", "listTables", (req) => ({
+    chain: getNormalizedChain((req.query.chain as string) ?? "sol"),
+    dbRootId: req.query.dbRootId ?? null,
+  })),
+ async (req: Request, res: Response) => {
   const { chain = "sol", dbRootId } = req.query as { chain?: string; dbRootId?: string };
 
   let normalizedChain: "sol" | "mon";

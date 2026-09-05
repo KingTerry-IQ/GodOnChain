@@ -99,6 +99,17 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 11
 text = "INSCRIBE • RETRIEVE • EXECUTE • ON-CHAIN INSCRIPTIONS POWERED BY $IQ"
 
+[node name="BuyIQButton" type="LinkButton" parent="Panel/MarginContainer/MainVBox/Header/HBox" unique_id=1407764236]
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Open the $IQ chart on DexScreener"
+theme_override_colors/font_color = Color(0, 1, 0.2, 1)
+theme_override_colors/font_hover_color = Color(0.6, 1, 0.7, 1)
+theme_override_font_sizes/font_size = 16
+text = "BUY $IQ ↗"
+uri = "https://dexscreener.com/solana/3uXACfojUrya7VH51jVC1DCHq3uzK4A7g469Q954LABS"
+underline = 1
+
 [node name="MainHBox" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox" unique_id=1407764229]
 layout_mode = 2
 size_flags_vertical = 3

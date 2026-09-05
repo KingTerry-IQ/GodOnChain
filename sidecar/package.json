@@ -5,29 +5,32 @@
   "description": "Local IQ Labs SDK service bundled into GodOnChain. Spawned by the app; also reachable by the .pck apps GodOnChain launches.",
   "main": "server.ts",
   "scripts": {
-    "dev": "ts-node server.ts",
-    "typecheck": "tsc --noEmit",
-    "bundle": "node build.mjs --bundle-only",
-    "build": "node build.mjs",
-    "build:linux": "bash build-linux.sh"
+	"dev": "ts-node server.ts",
+	"typecheck": "tsc --noEmit",
+	"bundle": "node build.mjs --bundle-only",
+	"build": "node build.mjs",
+	"build:linux": "bash build-linux.sh",
+	"test:scopes": "node tests/run-readgate.mjs",
+	"test:activity": "node tests/run-readgate.mjs activity.mjs",
+	"test:naming": "node tests/run-readgate.mjs naming.mjs"
   },
   "license": "ISC",
   "dependencies": {
-    "@iqlabs-official/ethereum-sdk": "^0.2.2",
-    "@iqlabs-official/solana-sdk": "0.1.27",
-    "@noble/curves": "^2.4.0",
-    "@solana/web3.js": "^1.98.4",
-    "bs58": "^6.0.0",
-    "dotenv": "^17.3.1",
-    "express": "^5.2.1",
-    "hanlock": "^1.0.2"
+	"@iqlabs-official/ethereum-sdk": "^0.2.2",
+	"@iqlabs-official/solana-sdk": "0.1.27",
+	"@noble/curves": "^2.4.0",
+	"@solana/web3.js": "^1.98.4",
+	"bs58": "^6.0.0",
+	"dotenv": "^17.3.1",
+	"express": "^5.2.1",
+	"hanlock": "^1.0.2"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/node": "^25.2.3",
-    "esbuild": "^0.25.0",
-    "postject": "^1.0.0-alpha.6",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+	"@types/express": "^5.0.6",
+	"@types/node": "^25.2.3",
+	"esbuild": "^0.25.0",
+	"postject": "^1.0.0-alpha.6",
+	"ts-node": "^10.9.2",
+	"typescript": "^5.9.3"
   }
 }

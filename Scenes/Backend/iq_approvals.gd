@@ -11,17 +11,6 @@
 class_name IQApprovals
 extends Node
 
-## Roughly what an inscription costs, mirroring IQ_SDK's own estimators.
-const SOL_CHUNK_BYTES := 850
-const SOL_INITIAL_TX := 0.0001
-const SOL_PER_CHUNK := 0.000005
-const SOL_FINAL_TX := 0.005005
-
-## Monad is charged per much larger chunk.
-const MON_CHUNK_BYTES := 70656
-const MON_PER_CHUNK := 0.415971708
-const MON_FINAL_TX := 6.51834143
-
 const PANEL_WIDTH := 820
 
 var host: IQHost
@@ -31,6 +20,10 @@ var _title: Label
 var _heading: Label
 var _detail: Label
 var _warning: Label
+## Relabelled per prompt, so "always" names the kind being granted rather than
+## implying the app was trusted with everything.
+var _always_button: Button
+var _never_button: Button
 var _queue: Array[Dictionary] = []
 ## Rings when a prompt appears. Lives here rather than in any app, because the
 ## request may well arrive while the user is looking at that app's window.
@@ -79,9 +72,13 @@ func attach(root: Control) -> void:
 
 	var strip := IQOverlay.buttons(box)
 	# Deny is listed first so the safe choice is the one nearest the text.
+	# "Never" is offered alongside it because a refusal has to be as durable as
+	# a grant: an app told no mid-refresh fires its remaining reads anyway, and
+	# without it the same question arrives once per read.
 	IQOverlay.button(strip, "Deny", _on_denied)
+	_never_button = IQOverlay.button(strip, "Never", _on_deny_always)
 	IQOverlay.button(strip, "Allow once", _on_allow_once)
-	IQOverlay.button(strip, "Always allow this app", _on_allow_always)
+	_always_button = IQOverlay.button(strip, "Always allow", _on_allow_always)
 
 
 #region Queueing
@@ -111,18 +108,42 @@ func _show_next() -> void:
 	var approval: Dictionary = _queue.pop_front()
 	_showing = str(approval.get("id", ""))
 
-	# A decrypt costs nothing but exposes something private, so it is framed as
-	# access rather than expense. Saying "this spends from your wallet" over a
-	# decrypt would train people to ignore the words.
-	var revealing := str(approval.get("scope", "write")) == "reveal"
-	_title.text = "— ACCESS REQUEST —" if revealing else "— WRITE REQUEST —"
-	_warning.text = (
-		"This opens something addressed to you, using your wallet's identity key. "
-		+ "Only allow apps you trust."
-		if revealing
-		else "This spends from the wallet configured in GodOnChain. "
-		+ "Only allow apps you trust."
-	)
+	# Each kind is a different question, so each gets its own words. Saying
+	# "this spends from your wallet" over a read would train people to ignore
+	# the sentence, and then it is not there when a spend actually arrives.
+	var scope := str(approval.get("scope", "write"))
+	match scope:
+		"read":
+			_title.text = "— READ REQUEST —"
+			_warning.text = (
+				"This costs nothing and changes nothing. It does say what you are "
+				+ "looking at and whose records, to whoever is asking."
+			)
+		"reveal":
+			_title.text = "— ACCESS REQUEST —"
+			_warning.text = (
+				"This opens something addressed to you, using your wallet's "
+				+ "identity key. Only allow apps you trust."
+			)
+		_:
+			_title.text = "— WRITE REQUEST —"
+			_warning.text = (
+				"This spends from the wallet configured in GodOnChain. "
+				+ "Only allow apps you trust."
+			)
+
+	# Naming the kind on the button matters: "always allow this app" over a read
+	# reads like a grant of everything, and reads are the one people will wave
+	# through. Reads and writes are remembered separately.
+	var kind := "spends"
+	if scope == "read":
+		kind = "reads"
+	elif scope == "reveal":
+		kind = "openings"
+	if _always_button != null:
+		_always_button.text = "Always allow %s" % kind
+	if _never_button != null:
+		_never_button.text = "Never allow %s" % kind
 
 	_heading.text = _summarise(approval)
 	_detail.text = _details(approval)
@@ -149,6 +170,12 @@ func _on_denied() -> void:
 	await _resolve(false, false)
 
 
+## Refuses this kind for the rest of the session, so a burst of requests does
+## not become a burst of identical prompts.
+func _on_deny_always() -> void:
+	await _resolve(false, true)
+
+
 func _resolve(allow: bool, remember: bool) -> void:
 	var id := _showing
 	if id.is_empty():
@@ -163,10 +190,23 @@ func _resolve(allow: bool, remember: bool) -> void:
 
 #region Description
 
+## What to call the app asking.
+##
+## A name GodOnChain assigned when it launched something is a fact. A name the
+## app chose for itself is a claim, and an app can claim anything — so the two
+## must not read alike, or a self-chosen "GodOnChain" would borrow the trust of
+## the real one.
+func _who(approval: Dictionary) -> String:
+	var label := str(approval.get("label", "An unidentified app"))
+	if bool(approval.get("declared", false)):
+		return "%s (self-named)" % label
+	return label
+
+
 ## One line naming who wants what. The user is being asked to spend real
 ## money, so this leads with the app and the action, not with "allow?".
 func _summarise(approval: Dictionary) -> String:
-	var label := str(approval.get("label", "An unidentified app"))
+	var label := _who(approval)
 	var action := str(approval.get("action", "write"))
 	var details: Dictionary = approval.get("details", {})
 	var chain := str(details.get("chain", "sol")).to_upper()
@@ -186,6 +226,24 @@ func _summarise(approval: Dictionary) -> String:
 			)
 		"decrypt":
 			return "%s wants to open a sealed message addressed to you." % label
+		"readCodeIn":
+			return "%s wants to read an inscription from %s." % [label, chain]
+		"readMetadata":
+			return "%s wants to read what an inscription says about itself, on %s." % [
+				label, chain
+			]
+		"readTableRows":
+			return (
+				"%s wants to read the table '%s' on %s."
+				% [label, str(details.get("tableName", "?")), chain]
+			)
+		"listTables":
+			return (
+				"%s wants to list the tables under '%s' on %s."
+				% [label, str(details.get("dbRootId", "?")), chain]
+			)
+		"readWallet":
+			return "%s wants to see your wallet addresses and balances." % label
 		_:
 			return "%s wants to write to %s." % [label, chain]
 
@@ -215,28 +273,23 @@ func _details(approval: Dictionary) -> String:
 	if bytes > 0:
 		lines.append("Size:             %s" % String.humanize_size(bytes))
 
-	if str(approval.get("scope", "write")) == "reveal":
-		var recipients := int(details.get("recipients", 0))
-		if recipients > 0:
-			lines.append("Addressed to:     %d key(s), one of them yours" % recipients)
-		lines.append("Cost:             nothing. This spends no funds.")
-	else:
-		lines.append("Estimated cost:   %s" % _estimate_cost(chain, bytes))
+	var scope := str(approval.get("scope", "write"))
+	match scope:
+		"reveal":
+			var recipients := int(details.get("recipients", 0))
+			if recipients > 0:
+				lines.append("Addressed to:     %d key(s), one of them yours" % recipients)
+			lines.append("Cost:             nothing. This spends no funds.")
+		"read":
+			var signature := str(details.get("signature", ""))
+			if not signature.is_empty():
+				lines.append("Inscription:      %s" % signature)
+			# An estimated cost over a read would be a lie, and a cost line the
+			# user learns to skip is one they skip over a spend too.
+			lines.append("Cost:             nothing. Reading the chain is free.")
+		_:
+			lines.append("Estimated cost:   %s" % IQCosts.format(chain, bytes))
 	return "\n".join(lines)
 
-
-func _estimate_cost(chain: String, bytes: int) -> String:
-	# Deliberately no early return for 0: a payload-free write still pays the
-	# base transaction, which is exactly what the formula yields.
-	var payload: int = maxi(bytes, 0)
-
-	if chain.to_lower().begins_with("mon"):
-		@warning_ignore("integer_division")
-		var mon_chunks: int = (payload + MON_CHUNK_BYTES - 1) / MON_CHUNK_BYTES
-		return "~%.4f MON" % (MON_FINAL_TX + mon_chunks * MON_PER_CHUNK)
-
-	@warning_ignore("integer_division")
-	var sol_chunks: int = (payload + SOL_CHUNK_BYTES - 1) / SOL_CHUNK_BYTES
-	return "~%.6f SOL" % (SOL_INITIAL_TX + sol_chunks * SOL_PER_CHUNK + SOL_FINAL_TX)
 
 #endregion

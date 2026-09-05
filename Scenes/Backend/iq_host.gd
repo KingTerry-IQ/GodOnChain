@@ -27,6 +27,8 @@ signal sidecar_failed(reason: String)
 signal sidecar_lost(reason: String)
 ## An app is asking to spend. See iq_approvals.gd for the prompt.
 signal approval_requested(approval: Dictionary)
+## One or more things an app asked the sidecar to do, oldest first.
+signal activity_logged(entries: Array)
 ## A pending approval went away without us answering (timed out, or the
 ## requesting app quit). Lets the UI dismiss a prompt that no longer matters.
 signal approval_withdrawn(approval_id: String)
@@ -75,11 +77,21 @@ var secrets: Dictionary = {
 var secrets_path: String = SECRETS_PATH
 var salt_path: String = SALT_PATH
 
+## Where the discovery file is published. Overridable for the same reason the
+## vault paths are: this file is how every other app on the machine finds a
+## running host, so a suite that publishes its own sidecar here and then
+## removes it on teardown silently cuts the real GodOnChain off from every app
+## that was talking to it. Tests point this somewhere harmless.
+var discovery_file: String = IQClient.discovery_path()
+
 var _pid: int = -1
 var _port: int = 0
 ## Anonymous read-only token handed out through the discovery file.
 var _discovery_token: String = ""
 var _approval_timer: Timer
+## The last activity sequence number we have seen, so each poll asks only for
+## what is new rather than re-reading the whole buffer.
+var _activity_seen: int = 0
 ## Approval ids we have already announced, so we only emit once each.
 var _seen_approvals: Dictionary = {}
 
@@ -114,6 +126,7 @@ func start() -> bool:
 	var crypto := Crypto.new()
 	control_token = crypto.generate_random_bytes(32).hex_encode()
 	_discovery_token = ""
+	_activity_seen = 0
 
 	# The sidecar reads keys from its environment. Children of this process
 	# inherit it, so scrub the values again as soon as it has spawned.
@@ -323,7 +336,12 @@ func _fail(reason: String) -> bool:
 ## Mints a token for an app about to be launched. Read-only by default: writes
 ## spend the user's funds, so they go through approval_requested instead.
 ## Returns {} on failure.
-func mint_app_token(label: String, scopes: PackedStringArray = ["read"]) -> Dictionary:
+## Mints a token for a launched app.
+##
+## No scopes by default: a scope is a standing "stop asking me", so granting
+## one up front means the user is never consulted about that kind at all. An
+## app starts with nothing and earns each kind from a prompt the user answers.
+func mint_app_token(label: String, scopes: PackedStringArray = []) -> Dictionary:
 	if not is_ready:
 		last_error = "The on-chain service is not running."
 		return {}
@@ -343,6 +361,22 @@ func revoke_app_token(token_id: String) -> bool:
 		return false
 	var response: Dictionary = await _control_request("DELETE", "/control/tokens/" + token_id)
 	return response.get("ok", false)
+
+
+## A token for GodOnChain's own screens.
+##
+## The app holding the keys is the user. Asking the user to approve their own
+## actions is noise, and noise is precisely what trains someone to dismiss a
+## prompt without reading it — so when a guest app really does ask for
+## something, the habit of clicking through is already formed. Our own screens
+## therefore carry standing grants for every data-plane power.
+##
+## Deliberately not the control token: a bug in our own database screens should
+## not be able to mint tokens, revoke them, or answer approval prompts.
+func mint_own_token() -> Dictionary:
+	return await mint_app_token(
+		"GodOnChain", PackedStringArray(["read", "write", "reveal"])
+	)
 
 
 ## Environment an app should be launched with so IQClient can find us.
@@ -365,7 +399,14 @@ func launch_environment(label: String) -> Dictionary:
 
 #region Discovery file
 
-static func discovery_path() -> String:
+## Where this host publishes itself. Instance-scoped, so a test cannot reach
+## the file a real host is using; the static form remains for callers that only
+## need to know the conventional location.
+func discovery_path() -> String:
+	return discovery_file
+
+
+static func default_discovery_path() -> String:
 	return IQClient.discovery_path()
 
 
@@ -434,6 +475,32 @@ func _stop_approval_polling() -> void:
 		_approval_timer = null
 
 
+## Fetches whatever the sidecar has logged since we last looked.
+##
+## Failure is deliberately silent: this is a convenience view, and a missed
+## poll must not be mistaken for the sidecar dying — _poll_approvals already
+## owns that judgement.
+func _poll_activity() -> void:
+	if not is_ready:
+		return
+	var response: Dictionary = await _control_request(
+		"GET", "/control/activity", {"after": str(_activity_seen)}
+	)
+	if not response.get("ok", false):
+		return
+	var data: Variant = response.get("data")
+	if not data is Dictionary:
+		return
+
+	var fresh: Array = (data as Dictionary).get("activity", [])
+	if fresh.is_empty():
+		return
+	for entry: Variant in fresh:
+		if entry is Dictionary:
+			_activity_seen = maxi(_activity_seen, int((entry as Dictionary).get("seq", 0)))
+	activity_logged.emit(fresh)
+
+
 func _poll_approvals() -> void:
 	if not is_ready:
 		return
@@ -450,6 +517,10 @@ func _poll_approvals() -> void:
 	var data: Variant = response.get("data")
 	if not data is Dictionary:
 		return
+
+	# Ride the same poll as approvals rather than adding a second timer: both
+	# are cheap loopback calls and the log is only interesting at human speed.
+	await _poll_activity()
 
 	var pending: Array = (data as Dictionary).get("approvals", [])
 	var live := {}

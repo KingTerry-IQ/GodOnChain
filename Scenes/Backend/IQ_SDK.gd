@@ -34,6 +34,8 @@ var client: IQClient
 var settings: IQSettings
 ## "App X wants to spend" prompts.
 var approvals: IQApprovals
+## The running log of what apps have asked the sidecar to do.
+var activity: IQActivity
 
 var _file_upload_path: String = ""
 
@@ -48,6 +50,10 @@ func _ready() -> void:
 	approvals = IQApprovals.new(host)
 	approvals.name = "IQApprovals"
 	add_child(approvals)
+
+	activity = IQActivity.new(host)
+	activity.name = "IQActivity"
+	add_child(activity)
 
 	settings = IQSettings.new(host)
 	settings.name = "IQSettings"
@@ -74,11 +80,31 @@ func attach_ui(root: Control) -> void:
 	approvals.attach(root)
 
 
+## Docks the activity log into a container on the main screen.
+##
+## Separate from attach_ui() because the others are full-screen overlays that
+## only need somewhere to sit, while this one has to land in a specific place
+## in the layout — and the screen owning that layout should be the one to say
+## where.
+func attach_activity(column: BoxContainer) -> void:
+	activity.attach(column)
+
+
 ## Starts the bundled sidecar and connects to it. Returns true when usable.
 func start_backend() -> bool:
 	if not await host.start():
 		return false
-	return await client.discover()
+
+	# Attach as ourselves, not as an anonymous caller. discover() would read the
+	# discovery file and pick up the token meant for apps we cannot identify —
+	# which now holds no standing grants, so GodOnChain would sit prompting the
+	# user for permission to do the very thing they just asked it to do.
+	var own: Dictionary = await host.mint_own_token()
+	if own.is_empty():
+		return false
+	return await client.attach_directly(
+		host.base_url, str(own.get("token", "")), "GodOnChain"
+	)
 
 
 func _on_settings_saved() -> void:
