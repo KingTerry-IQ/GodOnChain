@@ -172,7 +172,7 @@ func _on_load_button_pressed() -> void:
 			_show_status("Loading DB table rows for %s on %s" % [id, chain_option.text])
 			var key := id
 			var tname := ""
-			if chain_option.text.to_lower().begins_with("mon") and key.contains("/"):
+			if IQClient.is_evm(chain_option.text) and key.contains("/"):
 				var parts := key.split("/", true, 1)
 				key = parts[0]
 				tname = parts[1]
@@ -486,28 +486,24 @@ func _on_cancel_upload_pressed() -> void:
 	upload_panel.hide()
 
 
+## Quotes the write before it happens, through the same model the approval
+## prompt and the activity log use — so the number here and the number on the
+## prompt are the same number. It used to be a per-chain literal, and they
+## disagreed.
 func _on_data_type_option_upload_item_selected(index: int) -> void:
-	match upload_chain_option.selected:
-		0: #SOL
-			match index:
-				0:
-					upload_text_edit.show()
-					upload_file_select_container.hide()
-					upload_cost_label.text = "Estimated Cost: %0.6f SOL" % 0.001005
-				_:
-					upload_text_edit.hide()
-					upload_file_select_container.show()
-					upload_cost_label.text = "Estimated Cost: %0.6f SOL" % iq_sdk.estimate_code_in_file_cost_SOL()
-		1: #MON
-			match index:
-				0:
-					upload_text_edit.show()
-					upload_file_select_container.hide()
-					upload_cost_label.text = "Estimated Cost: %0.6f MON" % 6.52
-				_:
-					upload_text_edit.hide()
-					upload_file_select_container.show()
-					upload_cost_label.text = "Estimated Cost: %0.6f MON" % iq_sdk.estimate_code_in_file_cost_MON()
+	var chain: String = upload_chain_option.text
+	var text_mode: bool = index == 0
+
+	upload_text_edit.visible = text_mode
+	upload_file_select_container.visible = not text_mode
+
+	var bytes: int = (
+		upload_text_edit.text.to_utf8_buffer().size()
+		if text_mode
+		else iq_sdk.upload_payload_bytes()
+	)
+	upload_cost_label.text = "Estimated Cost: " + IQCosts.format(chain, bytes)
+
 
 func _on_chain_option_upload_item_selected(_index: int) -> void:
 	_on_data_type_option_upload_item_selected(upload_data_type.selected)

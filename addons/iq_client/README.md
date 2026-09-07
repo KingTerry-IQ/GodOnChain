@@ -59,12 +59,14 @@ await iq.han_encrypt(text)
 await iq.han_decrypt(text)
 ```
 
-`chain` is `"sol"` or `"mon"`. `progress_callback` is an optional `Callable`
-taking one float from 0 to 100 — useful for large reads, which can take a
-while as chunks are walked.
+`chain` is `"sol"` (Solana), `"mon"` (Monad) or `"rh"` (Robinhood Chain).
+The long spellings — `"solana"`, `"monad"`, `"robinhood"` — work too.
+`progress_callback` is an optional `Callable` taking one float from 0 to 100 —
+useful for large reads, which can take a while as chunks are walked.
 
-For `read_db_table_rows`, SOL wants `table_pda`; MON wants `db_root_id` plus
-`table_name`.
+`MON` and `RH` are both EVM chains and behave identically here; `IQClient.is_evm(chain)`
+is the one test worth branching on. For `read_db_table_rows`, SOL wants
+`table_pda`; an EVM chain wants `db_root_id` plus `table_name`.
 
 ## Writes
 
@@ -100,18 +102,18 @@ user's approval and return `null` if it is refused.
 `row` takes a Dictionary and encodes it for you, or an already-encoded JSON
 String if you would rather do it yourself.
 
-The two chains disagree about table identity, and the client smooths over what
-it honestly can. Solana derives the table's address from a **table seed** and
-also wants a **table hint**; both default to `table_name`, so you only pass
-them when they need to differ. Monad uses `table_name` alone and supports
-`is_private`. Everything chain-specific goes in `options`:
+Solana and the EVM chains disagree about table identity, and the client smooths
+over what it honestly can. Solana derives the table's address from a **table
+seed** and also wants a **table hint**; both default to `table_name`, so you
+only pass them when they need to differ. MON and RH use `table_name` alone and
+support `is_private`. Everything chain-specific goes in `options`:
 
 | Option | Chain | Meaning |
 |---|---|---|
 | `table_seed` | SOL | Address-deriving seed. Defaults to `table_name`. |
 | `table_hint` | SOL | Required by the SDK. Defaults to `table_name`. |
 | `skip_confirmation` | SOL | Don't wait for confirmation on `write_row`. |
-| `is_private` | MON | Create the table private. |
+| `is_private` | MON, RH | Create the table private. |
 | `gate` | both | Token gate. Shapes differ per chain — see the sidecar README. |
 | `writers` | both | Whitelist of addresses allowed to write. |
 | `ext_keys` | both | Extra keys, passed straight through. |
@@ -121,8 +123,8 @@ them when they need to differ. Monad uses `table_name` alone and supports
 silently means a different table.
 
 Results carry the host's own fields (`dbRootId`, `tableName`, the chain) plus a
-`signature` key, aliased from Monad's `txHash` so you don't have to branch on
-chain to find the transaction id.
+`signature` key, aliased from the EVM chains' `txHash` so you don't have to
+branch on chain to find the transaction id.
 
 Ask for a write when the user did something that implies one. An app that
 prompts on startup is an app that gets denied.

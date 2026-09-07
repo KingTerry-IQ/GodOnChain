@@ -41,6 +41,11 @@ const FIELD_GROUPS := [
 				"label": "MON RPC URL:",
 				"hint": "blank = rpc.monad.xyz",
 			},
+			{
+				"key": "ROBINHOOD_RPC_URL",
+				"label": "RH RPC URL:",
+				"hint": "blank = rpc.mainnet.chain.robinhood.com",
+			},
 		],
 	},
 	{
@@ -55,6 +60,11 @@ const FIELD_GROUPS := [
 				"key": "MON_SIGNER_PRIVATE_KEY",
 				"label": "MON signer key:",
 				"hint": "0x-prefixed hex",
+			},
+			{
+				"key": "RH_SIGNER_PRIVATE_KEY",
+				"label": "RH signer key:",
+				"hint": "0x-prefixed hex — Robinhood Chain, fees in ETH",
 			},
 		],
 	},

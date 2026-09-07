@@ -233,9 +233,8 @@ popup/item_0/text = "SOL"
 popup/item_0/id = 0
 popup/item_1/text = "MON"
 popup/item_1/id = 1
-popup/item_2/text = "ETH"
+popup/item_2/text = "RH"
 popup/item_2/id = 2
-popup/item_2/disabled = true
 
 [node name="EncryptionPass" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox/MainHBox/VBoxContainer/URL/VBoxContainer" unique_id=783442675]
 layout_mode = 2
@@ -450,9 +449,8 @@ popup/item_0/text = "SOL"
 popup/item_0/id = 0
 popup/item_1/text = "MON"
 popup/item_1/id = 1
-popup/item_2/text = "ETH"
+popup/item_2/text = "RH"
 popup/item_2/id = 2
-popup/item_2/disabled = true
 
 [node name="Passphrase" type="HBoxContainer" parent="AddBookmark/MarginContainer/CenterContainer/VBoxContainer" unique_id=1193500727]
 layout_mode = 2
@@ -584,9 +582,8 @@ popup/item_0/text = "SOL"
 popup/item_0/id = 0
 popup/item_1/text = "MON"
 popup/item_1/id = 1
-popup/item_2/text = "ETH"
+popup/item_2/text = "RH"
 popup/item_2/id = 2
-popup/item_2/disabled = true
 
 [node name="FolderUpload" type="HBoxContainer" parent="Upload/MarginContainer/VBoxContainer" unique_id=467777404]
 layout_mode = 2
@@ -671,7 +668,7 @@ text = "Select File"
 [node name="CostLabel" type="Label" parent="Upload/MarginContainer/VBoxContainer" unique_id=148225821]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Estimated Cost: 6.52 MON"
+text = "Estimated Cost: —"
 
 [node name="HSeparator" type="HSeparator" parent="Upload/MarginContainer/VBoxContainer" unique_id=1673600401]
 layout_mode = 2

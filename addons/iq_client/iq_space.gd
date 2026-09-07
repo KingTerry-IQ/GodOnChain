@@ -19,10 +19,10 @@
 ## The chain given to the constructor is only the default for the common case
 ## of an app that never leaves one.
 ##
-## It also hides a real difference between the chains: Monad addresses a table
-## by name, while Solana needs a program-derived address that only the root's
-## table listing can give you. Callers should never have to know which chain
-## they are on to read a row.
+## It also hides a real difference between the chains: the EVM chains (Monad,
+## Robinhood Chain) address a table by name, while Solana needs a
+## program-derived address that only the root's table listing can give you.
+## Callers should never have to know which chain they are on to read a row.
 ##
 ## ## Choosing a root
 ##
@@ -96,6 +96,17 @@ func on(target_chain: String) -> IQSpace:
 static func is_monad(target_chain: String) -> bool:
 	var c := target_chain.strip_edges().to_lower()
 	return c == "mon" or c == "monad"
+
+
+static func is_robinhood(target_chain: String) -> bool:
+	var c := target_chain.strip_edges().to_lower()
+	return c == "rh" or c == "rhc" or c == "robinhood" or c == "robinhood-chain"
+
+
+## True for the chains that name a table directly. Everything in here branches
+## on this rather than on a chain, so another EVM deployment needs no changes.
+static func is_evm(target_chain: String) -> bool:
+	return is_monad(target_chain) or is_robinhood(target_chain)
 
 
 ## A table name that will not collide with another owner's under a shared root.
@@ -186,7 +197,7 @@ func read_rows(
 		return []
 
 	var raw: Dictionary = {}
-	if is_monad(chain):
+	if is_evm(chain):
 		raw = await client.read_db_table_rows(
 			"", root, name, chain, limit, "", progress, with_signers
 		)
@@ -214,7 +225,7 @@ func table_exists(name: String) -> bool:
 	if not _ready():
 		return false
 	forget(name)
-	if is_monad(chain):
+	if is_evm(chain):
 		var rows: Dictionary = await client.read_db_table_rows("", root, name, chain, 1)
 		return not rows.is_empty()
 	var problem: Array = []
@@ -275,8 +286,8 @@ func forget(name: String) -> void:
 ## One row, whichever chain it came from.
 ##
 ## The two SDKs disagree: Solana hands back the row's own fields at the top
-## level, while Monad wraps them as {txHash, data}. Reading Monad rows as though
-## they were flat finds no fields at all.
+## level, while the EVM chains wrap them as {txHash, data}. Reading an EVM row
+## as though it were flat finds no fields at all.
 ##
 ## The transaction id is normalised onto "__tx", and the signer — when it was
 ## asked for — onto "__signer". Both come from the wrapper rather than the

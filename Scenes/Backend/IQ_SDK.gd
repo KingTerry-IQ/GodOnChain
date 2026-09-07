@@ -322,82 +322,42 @@ func write_code_in_file(
 
 #region Cost estimates
 
-func estimate_code_in_file_cost_SOL() -> float:
+## How many bytes the picked file will actually occupy on-chain.
+##
+## Not the file's size: it is base64-encoded before it is sent, which is what
+## the chain is charged for. Returns 0 when nothing is picked or the file
+## cannot be read, so a caller gets the floor price rather than an error.
+func upload_payload_bytes() -> int:
 	if _file_upload_path.is_empty():
-		push_warning("File not yet selected")
-		return 0.0
+		return 0
 
 	if not FileAccess.file_exists(_file_upload_path):
 		push_warning("File does not exist at: " + _file_upload_path)
-		return 0.0
+		return 0
 
-	var file = FileAccess.open(_file_upload_path, FileAccess.READ)
+	var file := FileAccess.open(_file_upload_path, FileAccess.READ)
 	if file == null:
 		push_warning("Cannot open file. Error code: " + str(FileAccess.get_open_error()))
-		return 0.0
+		return 0
 
 	var original_size: int = file.get_length()
 	file.close()
 
 	if original_size <= 0:
 		push_warning("File is empty (0 bytes)")
-		return 0.0
+		return 0
 
 	@warning_ignore("integer_division")
 	var base64_length: int = ((original_size + 2) / 3) * 4
-
-	@warning_ignore("integer_division")
-	var num_chunks: int = (base64_length + 849) / 850
-
-	var initial_tx: float = 0.0001
-	var per_chunk: float = 0.000005
-	var final_tx: float = 0.005005
-
-	var total_cost: float = initial_tx + (num_chunks * per_chunk) + final_tx
-	return total_cost
-
-
-func estimate_code_in_file_cost_MON() -> float:
-	if _file_upload_path.is_empty():
-		push_warning("File not yet selected")
-		return 0.0
-
-	if not FileAccess.file_exists(_file_upload_path):
-		push_warning("File does not exist at: " + _file_upload_path)
-		return 0.0
-
-	var file = FileAccess.open(_file_upload_path, FileAccess.READ)
-	if file == null:
-		push_warning("Cannot open file. Error code: " + str(FileAccess.get_open_error()))
-		return 0.0
-
-	var original_size: int = file.get_length()
-	file.close()
-
-	if original_size <= 0:
-		push_warning("File is empty (0 bytes)")
-		return 0.0
-
-	@warning_ignore("integer_division")
-	var base64_length: int = ((original_size + 2) / 3) * 4
-
-	@warning_ignore("integer_division")
-	var num_chunks: int = (base64_length + 849) / 70656 #Assumed, conservatively, ~69KB/chunk, as calculated from the number of transactions, though the real amount may be ~95KB/chunk
-
-	var initial_tx: float = 0
-	var per_chunk: float = 0.415971708
-	var final_tx: float = 6.51834143
-
-	var total_cost: float = initial_tx + (num_chunks * per_chunk) + final_tx
-	return total_cost
+	return base64_length
 
 #endregion
 
 
 #region Database
 # ID semantics for browser: table list always takes dbRootId as "ID".
-# Table rows: SOL "ID" = tablePda ; MON "ID" = "dbRootId/tableName" (slash composite)
-# or pass table_name.
+# Table rows: SOL "ID" = tablePda ; EVM (MON, RH) "ID" = "dbRootId/tableName"
+# (slash composite) or pass table_name.
 
 func get_db_table_list(
 	db_root_id: String, progress_callback: Callable = Callable(), chain: String = "SOL"
@@ -424,10 +384,9 @@ func read_db_table_rows(
 ) -> Dictionary:
 	load_started.emit()
 
-	var normalized := chain.to_lower()
 	var result: Dictionary
 
-	if normalized == "mon" or normalized == "monad":
+	if IQClient.is_evm(chain):
 		var root_id := db_root_or_pda
 		var t_name := table_name
 		if t_name.is_empty() and db_root_or_pda.contains("/"):
@@ -436,7 +395,11 @@ func read_db_table_rows(
 			t_name = parts[1]
 		if t_name.is_empty():
 			push_error(
-				"MON readTableRows requires tableName (use 'dbRoot/tableName' in ID field or pass as 2nd arg)"
+				(
+					"%s readTableRows requires tableName "
+					% IQCosts.code(chain).to_upper()
+				)
+				+ "(use 'dbRoot/tableName' in ID field or pass as 2nd arg)"
 			)
 			load_failed.emit()
 			return {}

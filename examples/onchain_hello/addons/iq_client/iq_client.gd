@@ -252,8 +252,8 @@ func get_db_table_list(
 	return result if result is Dictionary else {}
 
 
-## Reads rows from a table. On SOL pass table_pda; on MON pass db_root_id plus
-## table_name. Returns {} on failure.
+## Reads rows from a table. On SOL pass table_pda; on an EVM chain (MON, RH)
+## pass db_root_id plus table_name. Returns {} on failure.
 func read_db_table_rows(
 	table_pda: String = "",
 	db_root_id: String = "",
@@ -267,9 +267,9 @@ func read_db_table_rows(
 	var normalized := _normalize_chain(chain)
 	var query := {"chain": normalized}
 
-	if normalized == "mon":
+	if normalized != "sol":
 		if db_root_id.is_empty() or table_name.is_empty():
-			last_error = "MON row reads need both dbRootId and tableName."
+			last_error = "%s row reads need both dbRootId and tableName." % normalized.to_upper()
 			return {}
 		query["dbRootId"] = db_root_id
 		query["tableName"] = table_name
@@ -322,7 +322,7 @@ func _han(path: String, text: String) -> String:
 ## already granted this app write access it blocks while GodOnChain asks the
 ## user, and returns null if they decline.
 ##
-## Returns the transaction signature (SOL) or hash (MON), or null.
+## Returns the transaction signature (SOL) or hash (MON, RH), or null.
 func write_code_in(
 	data: String,
 	filename: String = "",
@@ -357,10 +357,11 @@ func write_code_in(
 ##   - Solana derives the table address from `table_seed` and needs a
 ##     `table_hint`. Both default to `table_name`, so pass them explicitly only
 ##     when they need to differ.
-##   - Monad uses `table_name` alone, and supports `is_private`.
+##   - The EVM chains use `table_name` alone, and support `is_private`.
 ##
 ## Returns the host's result, which carries `dbRootId`, `tableName`, the chain,
-## and a `signature` (aliased from Monad's `txHash` so callers need not branch).
+## and a `signature` (aliased from the EVM chains' `txHash` so callers need not
+## branch).
 func create_table(
 	db_root_id: String,
 	table_name: String,
@@ -396,7 +397,7 @@ func create_table(
 		"writers": options.get("writers", []),
 	}
 
-	if normalized == "mon":
+	if normalized != "sol":
 		body["columns"] = columns
 		body["isPrivate"] = bool(options.get("is_private", false))
 	else:
@@ -453,7 +454,7 @@ func write_row(
 		"rowJson": row_json,
 	}
 
-	if normalized == "mon":
+	if normalized != "sol":
 		body["tableName"] = table_name.strip_edges()
 	else:
 		body["tableSeed"] = str(options.get("table_seed", table_name)).strip_edges()
@@ -464,8 +465,8 @@ func write_row(
 	return _with_signature(await _follow_job(started, progress_callback))
 
 
-## Monad reports a txHash where Solana reports a signature. Both are the same
-## idea, so expose one name and leave the original key in place.
+## The EVM chains report a txHash where Solana reports a signature. Both are
+## the same idea, so expose one name and leave the original key in place.
 func _with_signature(result: Variant) -> Variant:
 	if result is Dictionary:
 		var dict: Dictionary = result
@@ -481,9 +482,11 @@ func _with_signature(result: Variant) -> Variant:
 
 ## Which wallets the host is paying with, and what they hold.
 ##
-## Returns {sol: {address, balance, unit, rpc}, mon: {...}}, with only the
-## chains the host has a key for. A chain that could not be reached carries an
-## "error" instead of a balance. Costs nothing and never prompts.
+## Returns {sol: {address, balance, unit, rpc}, mon: {...}, rh: {...}}, with
+## only the chains the host has a key for. A chain that could not be reached
+## carries an "error" instead of a balance. `unit` is the token the fees are
+## paid in, which is not always the chain's own name — Robinhood Chain settles
+## in ETH. Costs nothing and never prompts.
 ##
 ## Worth checking before a run of writes: an unfunded account and a genuine bug
 ## both surface as "transaction simulation failed", and this tells them apart.
@@ -669,11 +672,21 @@ func poll_job(job_id: String, progress_callback: Callable = Callable()) -> Varia
 
 #region HTTP
 
-func _normalize_chain(chain: String) -> String:
+static func _normalize_chain(chain: String) -> String:
 	var c := chain.strip_edges().to_lower()
 	if c == "monad" or c == "mon":
 		return "mon"
+	if c == "rh" or c == "rhc" or c == "robinhood" or c == "robinhood-chain":
+		return "rh"
 	return "sol"
+
+
+## True for the chains running the IQ Labs Ethereum SDK — Monad and Robinhood
+## Chain. They address a table by name, where Solana needs a program-derived
+## address that only the root's listing can give you. That difference is the
+## only one an app has to know about.
+static func is_evm(chain: String) -> bool:
+	return _normalize_chain(chain) != "sol"
 
 
 ## Issues one request, returning

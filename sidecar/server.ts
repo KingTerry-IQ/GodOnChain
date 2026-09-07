@@ -2,6 +2,7 @@ import express, { NextFunction, Request, Response } from "express";
 import type { AddressInfo } from "net";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import * as timelock from "./timelock";
+import { createNetworkTurns } from "./evm_network";
 import { unlinkSync } from "fs";
 import * as solanaIqlabs from "@iqlabs-official/solana-sdk";
 import ethIqlabs from "@iqlabs-official/ethereum-sdk";
@@ -17,7 +18,16 @@ import { Wallet, JsonRpcProvider, formatEther } from "ethers";
 import dotenv from "dotenv";
 import bs58 from "bs58";
 import { decodeWithPassword, encodeWithPassword } from "hanlock";
-import { extractIQLabsMetadataFromTx, extractMonadMetadata, getNormalizedChain, safeParseMetadata } from "./helpers";
+import {
+  EVM_CHAINS,
+  extractIQLabsMetadataFromTx,
+  extractEvmMetadata,
+  getNormalizedChain,
+  isEvmChain,
+  safeParseMetadata,
+  type Chain,
+  type EvmChain,
+} from "./helpers";
 import {
   authenticate,
   denyAllApprovals,
@@ -67,7 +77,54 @@ const hostToken = registerToken(
 
 // === RPC URLs ===
 const solanaRpcUrl = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
-const monadRpcUrl = process.env.MONAD_RPC_URL || "https://rpc.monad.xyz";
+
+// === EVM chains ===
+// Monad and Robinhood Chain are the same SDK against different deployments,
+// so everything below is written once and takes the chain as an argument.
+
+/** Where this chain is reached: the user's endpoint, or the documented default. */
+const evmRpcUrl = (chain: EvmChain): string =>
+  (process.env[EVM_CHAINS[chain].rpcEnv] || "").trim() || EVM_CHAINS[chain].defaultRpc;
+
+// One provider per endpoint. Each JsonRpcProvider opens its own keepalive
+// pool, and these routes are polled.
+const evmProviders = new Map<string, JsonRpcProvider>();
+const evmProvider = (chain: EvmChain): JsonRpcProvider => {
+  const url = evmRpcUrl(chain);
+  let cached = evmProviders.get(url);
+  if (!cached) {
+    cached = new JsonRpcProvider(url);
+    evmProviders.set(url, cached);
+  }
+  return cached;
+};
+
+/**
+ * Turns on the SDK's global network setting. See evm_network.ts for why one
+ * chain at a time is not optional here: that global decides which contract
+ * address a write is signed against, so a race between two EVM chains sends
+ * real funds to the wrong deployment.
+ *
+ * The cost is that a long chunked upload holds its turn for its duration. The
+ * alternative is signing against an address chosen by a race.
+ */
+const evmTurns = createNetworkTurns<EvmChain>((chain) =>
+  ethIqlabs.setNetwork(EVM_CHAINS[chain].network, evmRpcUrl(chain)),
+);
+
+/** Runs `work` with the SDK pointed at `chain`, and nothing else moving it. */
+const withEvm = <T>(chain: EvmChain, work: () => Promise<T>): Promise<T> =>
+  evmTurns.run(chain, work);
+
+/** This chain's signer, or a refusal naming the key that is missing. */
+const evmSigner = (chain: EvmChain): Wallet => {
+  const config = EVM_CHAINS[chain];
+  const key = process.env[config.keyEnv];
+  if (!key) {
+    throw new Error(`Missing ${config.keyEnv} — no ${config.label} signing key is configured`);
+  }
+  return new Wallet(key, evmProvider(chain));
+};
 
 // === Solana setup ===
 solanaIqlabs.setRpcUrl(solanaRpcUrl);
@@ -349,19 +406,21 @@ app.get(
     }
   }
 
-  const monKey = process.env.MON_SIGNER_PRIVATE_KEY;
-  if (monKey) {
+  for (const chain of Object.keys(EVM_CHAINS) as EvmChain[]) {
+    const config = EVM_CHAINS[chain];
+    const key = process.env[config.keyEnv];
+    if (!key) continue;
     try {
-      const provider = new JsonRpcProvider(monadRpcUrl);
-      const signer = new Wallet(monKey, provider);
-      out.mon = {
+      const provider = evmProvider(chain);
+      const signer = new Wallet(key, provider);
+      out[chain] = {
         address: signer.address,
         balance: Number(formatEther(await provider.getBalance(signer.address))),
-        unit: "MON",
-        rpc: monadRpcUrl,
+        unit: config.currency,
+        rpc: evmRpcUrl(chain),
       };
     } catch (err: any) {
-      out.mon = { error: err.message || "Could not read the Monad wallet" };
+      out[chain] = { error: err.message || `Could not read the ${config.label} wallet` };
     }
   }
 
@@ -458,7 +517,7 @@ app.get(
     return res.status(400).json({ error: "Missing signature query param" });
   }
 
-  let normalizedChain: "sol" | "mon";
+  let normalizedChain: Chain;
   try {
     normalizedChain = getNormalizedChain(chain);
   } catch (e: any) {
@@ -482,18 +541,15 @@ app.get(
           },
         );
       } else {
-        // === MONAD ===
-        const network = "monad";
-        const rpc = monadRpcUrl;
-
-        ethIqlabs.setNetwork(network, rpc);
-
-        result = await ethIqlabs.reader.readCodeIn(
-          signature, // txHash
-          (percent: number) => {
-            const job = jobs.get(jobId);
-            if (job) job.progress = percent;
-          },
+        // === EVM: Monad, Robinhood Chain ===
+        result = await withEvm(normalizedChain, () =>
+          ethIqlabs.reader.readCodeIn(
+            signature, // txHash
+            (percent: number) => {
+              const job = jobs.get(jobId);
+              if (job) job.progress = percent;
+            },
+          ),
         );
       }
 
@@ -534,7 +590,7 @@ app.post(
       });
     }
 
-    let normalizedChain: "sol" | "mon";
+    let normalizedChain: Chain;
     try {
       normalizedChain = getNormalizedChain(chain);
     } catch (e: any) {
@@ -573,32 +629,26 @@ app.post(
             "light",
           );
         } else {
-          // === MONAD ===
-          const monPrivateKey = process.env.MON_SIGNER_PRIVATE_KEY;
-          if (!monPrivateKey) throw new Error("Missing MON_SIGNER_PRIVATE_KEY in .env");
+          // === EVM: Monad, Robinhood Chain ===
+          const evmChain = normalizedChain;
 
-          const network = "monad";
-          const rpc = monadRpcUrl;
+          result = await withEvm(evmChain, async () => {
+            const signer = evmSigner(evmChain);
+            console.log(`[${evmChain.toUpperCase()}] Signer: ${signer.address}`);
 
-          ethIqlabs.setNetwork(network, rpc);
+            await ethIqlabs.assertChainMatches(signer);
 
-          const provider = new JsonRpcProvider(rpc);
-          const signer = new Wallet(monPrivateKey, provider);
-
-          console.log(`[MONAD] Signer: ${signer.address}`);
-
-          await ethIqlabs.assertChainMatches(signer);
-
-          result = await ethIqlabs.writer.codeIn(
-            signer,
-            data.trim(),
-            filename || undefined,
-            filetype || undefined,
-            (percent: number) => {
-              const job = jobs.get(jobId);
-              if (job) job.progress = percent;
-            },
-          );
+            return await ethIqlabs.writer.codeIn(
+              signer,
+              data.trim(),
+              filename || undefined,
+              filetype || undefined,
+              (percent: number) => {
+                const job = jobs.get(jobId);
+                if (job) job.progress = percent;
+              },
+            );
+          });
         }
 
         const job = jobs.get(jobId);
@@ -638,7 +688,7 @@ app.get(
     return res.status(400).json({ error: "Missing signature query param" });
   }
 
-  let normalizedChain: "sol" | "mon";
+  let normalizedChain: Chain;
   try {
     normalizedChain = getNormalizedChain(chain);
   } catch (e: any) {
@@ -679,8 +729,11 @@ app.get(
 
       return res.json(enhanced);
     } else {
-      // === MONAD / EVM ===
-      const provider = new JsonRpcProvider(monadRpcUrl);
+      // === EVM: Monad, Robinhood Chain ===
+      // Straight through ethers rather than the SDK, so this needs no turn on
+      // the shared network state.
+      const evmChain = normalizedChain;
+      const provider = evmProvider(evmChain);
 
       const [tx, receipt] = await Promise.all([
         provider.getTransaction(signature),
@@ -688,20 +741,22 @@ app.get(
       ]);
 
       if (!tx) {
-        return res.status(404).json({ error: "Transaction not found on Monad" });
+        return res
+          .status(404)
+          .json({ error: `Transaction not found on ${EVM_CHAINS[evmChain].label}` });
       }
 
       const signer = tx.from;
 
       // Best-effort metadata extraction for EVM
-      const evmMeta = extractMonadMetadata(tx, receipt);
+      const evmMeta = extractEvmMetadata(tx, receipt);
 
       const parsedMeta = safeParseMetadata(evmMeta?.metadata ?? null);
 
       const enhanced = {
         ...parsedMeta,
         signer,
-        chain: "mon",
+        chain: evmChain,
         signature,
         ...(evmMeta?.onChainPath && { onChainPath: evmMeta.onChainPath }),
       };
@@ -881,7 +936,8 @@ async function tolerantSolDbRows(solanaIqlabs: any, tablePda: string, options: a
 }
 
 // ==================== UNIFIED DB OPERATIONS (chain-aware) ====================
-// Single set of endpoints for both chains. Pass "chain": "sol" | "mon" in body/query.
+// One set of endpoints for every chain. Pass "chain": "sol" | "mon" | "rh" in
+// body/query. The two EVM chains share a path; Solana has its own.
 
 /**
  * Turns a chain error into something a person can act on.
@@ -925,7 +981,7 @@ const SOL_DUST_LAMPORTS = 2_000_000; // 0.002 SOL
  */
 const attachSigners = async (
   rows: any[],
-  chain: "sol" | "mon",
+  chain: Chain,
 ): Promise<any[]> => {
   if (!Array.isArray(rows) || rows.length === 0) return rows;
 
@@ -934,7 +990,7 @@ const attachSigners = async (
 
   // One lookup per signature: a chunked write puts many rows behind one.
   const cache = new Map<string, string | null>();
-  const provider = chain === "mon" ? new JsonRpcProvider(monadRpcUrl) : null;
+  const provider = isEvmChain(chain) ? evmProvider(chain) : null;
 
   for (const row of rows) {
     const signature = signatureOf(row);
@@ -942,7 +998,7 @@ const attachSigners = async (
     if (!cache.has(signature)) {
       let signer: string | null = null;
       try {
-        if (chain === "mon") {
+        if (isEvmChain(chain)) {
           signer = (await provider!.getTransaction(signature))?.from ?? null;
         } else {
           const tx = await solanaConnection.getTransaction(signature, {
@@ -967,9 +1023,9 @@ const attachSigners = async (
  * Makes sure a Solana db_root account exists before anything hangs off it.
  *
  * The two SDKs differ here and the difference is invisible until it bites:
- * Monad's writer initialises the root itself, while Solana's createTable throws
- * "db_root not found" and creates nothing. So the same app builds fine on MON
- * and fails on SOL. Levelling it here keeps that out of every app.
+ * the Ethereum writer initialises the root itself, while Solana's createTable
+ * throws "db_root not found" and creates nothing. So the same app builds fine
+ * on MON or RH and fails on SOL. Levelling it here keeps that out of every app.
  *
  * Idempotent, and it never touches a root that already exists — including one
  * somebody else created, which stays theirs.
@@ -1016,7 +1072,7 @@ app.post(
   const body = req.body as any;
   const { chain = "sol", dbRootId } = body;
 
-  let normalizedChain: "sol" | "mon";
+  let normalizedChain: Chain;
   try {
     normalizedChain = getNormalizedChain(chain);
   } catch (e: any) {
@@ -1032,8 +1088,9 @@ app.post(
 
   (async () => {
     try {
-      if (normalizedChain === "mon") {
-        // ==================== MONAD path ====================
+      if (isEvmChain(normalizedChain)) {
+        // ============== EVM path (Monad, Robinhood Chain) ==============
+        const evmChain = normalizedChain;
         const {
           tableName,
           columns,
@@ -1045,38 +1102,9 @@ app.post(
         } = body;
 
         if (!tableName || !columns || !idCol) {
-          throw new Error("MON createTable requires: tableName, columns (array), idCol");
-        }
-
-        const monPrivateKey = process.env.MON_SIGNER_PRIVATE_KEY;
-        if (!monPrivateKey) throw new Error("Missing MON_SIGNER_PRIVATE_KEY in .env");
-
-        const network = "monad";
-        const rpc = monadRpcUrl;
-        ethIqlabs.setNetwork(network, rpc);
-
-        const provider = new JsonRpcProvider(rpc);
-        const signer = new Wallet(monPrivateKey, provider);
-
-        console.log(`[MON][createTable] Signer: ${signer.address} dbRoot="${dbRootId}" table="${tableName}"`);
-
-        await ethIqlabs.assertChainMatches(signer);
-
-        // Auto-initialize DbRoot if necessary (check via getTablelistFromRoot)
-        let alreadyInitialized = false;
-        try {
-          const list = await ethIqlabs.reader.getTablelistFromRoot(dbRootId.trim());
-          if (list && list.creator) {
-            alreadyInitialized = true;
-          }
-        } catch {
-          // not initialized yet
-        }
-
-        if (!alreadyInitialized) {
-          console.log(`[MON] Auto-initializing DbRoot "${dbRootId}"...`);
-          await ethIqlabs.writer.initializeDbRoot(signer, dbRootId.trim());
-          await new Promise(r => setTimeout(r, 1500));
+          throw new Error(
+            `${evmChain.toUpperCase()} createTable requires: tableName, columns (array), idCol`,
+          );
         }
 
         const gateParam = gate
@@ -1087,22 +1115,47 @@ app.post(
             }
           : undefined;
 
-        const txHash = await ethIqlabs.writer.createTable(
-          signer,
-          dbRootId.trim(),
-          tableName.trim(),
-          columns,
-          idCol.trim(),
-          extKeys.length ? extKeys : undefined,
-          gateParam,
-          writers.length ? writers : undefined,
-          isPrivate,
-        );
+        const txHash = await withEvm(evmChain, async () => {
+          const signer = evmSigner(evmChain);
+
+          console.log(`[${evmChain.toUpperCase()}][createTable] Signer: ${signer.address} dbRoot="${dbRootId}" table="${tableName}"`);
+
+          await ethIqlabs.assertChainMatches(signer);
+
+          // Auto-initialize DbRoot if necessary (check via getTablelistFromRoot)
+          let alreadyInitialized = false;
+          try {
+            const list = await ethIqlabs.reader.getTablelistFromRoot(dbRootId.trim());
+            if (list && list.creator) {
+              alreadyInitialized = true;
+            }
+          } catch {
+            // not initialized yet
+          }
+
+          if (!alreadyInitialized) {
+            console.log(`[${evmChain.toUpperCase()}] Auto-initializing DbRoot "${dbRootId}"...`);
+            await ethIqlabs.writer.initializeDbRoot(signer, dbRootId.trim());
+            await new Promise(r => setTimeout(r, 1500));
+          }
+
+          return await ethIqlabs.writer.createTable(
+            signer,
+            dbRootId.trim(),
+            tableName.trim(),
+            columns,
+            idCol.trim(),
+            extKeys.length ? extKeys : undefined,
+            gateParam,
+            writers.length ? writers : undefined,
+            isPrivate,
+          );
+        });
 
         const job = jobs.get(jobId);
         if (job) {
           job.status = "completed";
-          job.result = { txHash, dbRootId: dbRootId.trim(), tableName: tableName.trim(), chain: "mon", isPrivate };
+          job.result = { txHash, dbRootId: dbRootId.trim(), tableName: tableName.trim(), chain: evmChain, isPrivate };
           job.progress = 100;
         }
       } else {
@@ -1218,7 +1271,7 @@ app.post(
   const body = req.body as any;
   const { chain = "sol", dbRootId, rowJson } = body;
 
-  let normalizedChain: "sol" | "mon";
+  let normalizedChain: Chain;
   try {
     normalizedChain = getNormalizedChain(chain);
   } catch (e: any) {
@@ -1234,39 +1287,34 @@ app.post(
 
   (async () => {
     try {
-      if (normalizedChain === "mon") {
+      if (isEvmChain(normalizedChain)) {
+        const evmChain = normalizedChain;
         const { tableName } = body;
-        if (!tableName) throw new Error("MON writeRow requires tableName");
+        if (!tableName) throw new Error(`${evmChain.toUpperCase()} writeRow requires tableName`);
 
-        const monPrivateKey = process.env.MON_SIGNER_PRIVATE_KEY;
-        if (!monPrivateKey) throw new Error("Missing MON_SIGNER_PRIVATE_KEY in .env");
+        const txHash = await withEvm(evmChain, async () => {
+          const signer = evmSigner(evmChain);
 
-        const network = "monad";
-        const rpc = monadRpcUrl;
-        ethIqlabs.setNetwork(network, rpc);
+          console.log(`[${evmChain.toUpperCase()}][writeRow] Signer: ${signer.address} db="${dbRootId}" table="${tableName}"`);
 
-        const provider = new JsonRpcProvider(rpc);
-        const signer = new Wallet(monPrivateKey, provider);
+          await ethIqlabs.assertChainMatches(signer);
 
-        console.log(`[MON][writeRow] Signer: ${signer.address} db="${dbRootId}" table="${tableName}"`);
-
-        await ethIqlabs.assertChainMatches(signer);
-
-        const txHash = await ethIqlabs.writer.writeRow(
-          signer,
-          dbRootId.trim(),
-          tableName.trim(),
-          rowJson,
-          (percent: number) => {
-            const job = jobs.get(jobId);
-            if (job) job.progress = percent;
-          },
-        );
+          return await ethIqlabs.writer.writeRow(
+            signer,
+            dbRootId.trim(),
+            tableName.trim(),
+            rowJson,
+            (percent: number) => {
+              const job = jobs.get(jobId);
+              if (job) job.progress = percent;
+            },
+          );
+        });
 
         const job = jobs.get(jobId);
         if (job) {
           job.status = "completed";
-          job.result = { txHash, dbRootId: dbRootId.trim(), tableName: tableName.trim(), chain: "mon" };
+          job.result = { txHash, dbRootId: dbRootId.trim(), tableName: tableName.trim(), chain: evmChain };
           job.progress = 100;
         }
       } else {
@@ -1324,7 +1372,7 @@ app.get(
   // Opt-in: resolving signers costs a transaction fetch per signature.
   const wantSigners = String(query.withSigners ?? "").toLowerCase() === "true";
 
-  let normalizedChain: "sol" | "mon";
+  let normalizedChain: Chain;
   try {
     normalizedChain = getNormalizedChain(chain);
   } catch (e: any) {
@@ -1336,26 +1384,27 @@ app.get(
 
   (async () => {
     try {
-      if (normalizedChain === "mon") {
+      if (isEvmChain(normalizedChain)) {
+        const evmChain = normalizedChain;
         if (!dbRootId || !tableName) {
-          throw new Error("MON readTableRows requires query params: dbRootId, tableName");
+          throw new Error(
+            `${evmChain.toUpperCase()} readTableRows requires query params: dbRootId, tableName`,
+          );
         }
-
-        const network = "monad";
-        const rpc = monadRpcUrl;
-        ethIqlabs.setNetwork(network, rpc);
 
         const options = limit ? { limit: parseInt(limit, 10) } : undefined;
 
-        console.log(`[MON][readTableRows] db="${dbRootId}" table="${tableName}" limit=${limit || "all"}`);
+        console.log(`[${evmChain.toUpperCase()}][readTableRows] db="${dbRootId}" table="${tableName}" limit=${limit || "all"}`);
 
-        let rows = await ethIqlabs.reader.readTableRows(dbRootId.trim(), tableName.trim(), options);
-        if (wantSigners) rows = await attachSigners(rows as any[], "mon");
+        let rows = await withEvm(evmChain, () =>
+          ethIqlabs.reader.readTableRows(dbRootId.trim(), tableName.trim(), options),
+        );
+        if (wantSigners) rows = await attachSigners(rows as any[], evmChain);
 
         const job = jobs.get(jobId);
         if (job) {
           job.status = "completed";
-          job.result = { rows, count: rows?.length ?? 0, dbRootId: dbRootId.trim(), tableName: tableName.trim(), chain: "mon" };
+          job.result = { rows, count: rows?.length ?? 0, dbRootId: dbRootId.trim(), tableName: tableName.trim(), chain: evmChain };
           job.progress = 100;
         }
       } else {
@@ -1418,7 +1467,7 @@ app.get(
  async (req: Request, res: Response) => {
   const { chain = "sol", dbRootId } = req.query as { chain?: string; dbRootId?: string };
 
-  let normalizedChain: "sol" | "mon";
+  let normalizedChain: Chain;
   try {
     normalizedChain = getNormalizedChain(chain);
   } catch (e: any) {
@@ -1434,19 +1483,19 @@ app.get(
 
   (async () => {
     try {
-      if (normalizedChain === "mon") {
-        const network = "monad";
-        const rpc = monadRpcUrl;
-        ethIqlabs.setNetwork(network, rpc);
+      if (isEvmChain(normalizedChain)) {
+        const evmChain = normalizedChain;
 
-        console.log(`[MON][getTablelistFromRoot] dbRootId="${dbRootId}"`);
+        console.log(`[${evmChain.toUpperCase()}][getTablelistFromRoot] dbRootId="${dbRootId}"`);
 
-        const list = await ethIqlabs.reader.getTablelistFromRoot(dbRootId.trim());
+        const list = await withEvm(evmChain, () =>
+          ethIqlabs.reader.getTablelistFromRoot(dbRootId.trim()),
+        );
 
         const job = jobs.get(jobId);
         if (job) {
           job.status = "completed";
-          job.result = { ...list, chain: "mon" };
+          job.result = { ...list, chain: evmChain };
           job.progress = 100;
         }
       } else {

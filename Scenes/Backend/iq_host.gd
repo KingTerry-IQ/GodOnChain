@@ -68,6 +68,8 @@ var secrets: Dictionary = {
 	"SOLANA_SIGNER_PRIVATE_KEY": "",
 	"MONAD_RPC_URL": "",
 	"MON_SIGNER_PRIVATE_KEY": "",
+	"ROBINHOOD_RPC_URL": "",
+	"RH_SIGNER_PRIVATE_KEY": "",
 	"HANLOCK_PASS": "",
 }
 
@@ -695,14 +697,20 @@ func _store_salt(salt: PackedByteArray) -> bool:
 	return true
 
 
+## The vault entry holding each chain's signing key.
+const SIGNER_KEYS := {
+	"sol": "SOLANA_SIGNER_PRIVATE_KEY",
+	"mon": "MON_SIGNER_PRIVATE_KEY",
+	"rh": "RH_SIGNER_PRIVATE_KEY",
+}
+
+
 ## True once there is a signer configured for the given chain.
 func can_write(chain: String) -> bool:
 	if not is_unlocked:
 		return false
-	var normalized := chain.strip_edges().to_lower()
-	if normalized == "mon" or normalized == "monad":
-		return not str(secrets["MON_SIGNER_PRIVATE_KEY"]).is_empty()
-	return not str(secrets["SOLANA_SIGNER_PRIVATE_KEY"]).is_empty()
+	var key: String = SIGNER_KEYS.get(IQCosts.code(chain), "SOLANA_SIGNER_PRIVATE_KEY")
+	return not str(secrets[key]).is_empty()
 
 #endregion
 

@@ -29,7 +29,7 @@ var host: IQHost
 
 var _log: RichTextLabel
 var _summary: Label
-var _spent: Dictionary = {"sol": 0.0, "mon": 0.0}
+var _spent: Dictionary = {"sol": 0.0, "mon": 0.0, "rh": 0.0}
 var _lines: int = 0
 
 
@@ -99,7 +99,7 @@ func _append(entry: Dictionary) -> void:
 	# beside a refused request would read as though it had been charged for.
 	var cost := IQCosts.format(chain, bytes) if spends else ""
 	if spends:
-		var key := "mon" if IQCosts.is_monad(chain) else "sol"
+		var key := IQCosts.code(chain)
 		_spent[key] = float(_spent[key]) + IQCosts.estimate(chain, bytes)
 
 	var subject := str(entry.get("subject", ""))
@@ -150,15 +150,16 @@ static func _colour(scope: String, outcome: String) -> Color:
 func _repaint_summary() -> void:
 	if _summary == null:
 		return
-	var sol := float(_spent["sol"])
-	var mon := float(_spent["mon"])
-	if sol <= 0.0 and mon <= 0.0:
+	# One term per chain actually spent on, so a session that only touched one
+	# reads as a single number rather than a row of zeroes.
+	var parts: PackedStringArray = []
+	for chain: String in _spent:
+		var spent := float(_spent[chain])
+		if spent > 0.0:
+			parts.append(IQCosts.amount(chain, spent))
+
+	if parts.is_empty():
 		_summary.text = "no spends this session"
 		return
 
-	var parts: PackedStringArray = []
-	if sol > 0.0:
-		parts.append("~%.6f SOL" % sol)
-	if mon > 0.0:
-		parts.append("~%.4f MON" % mon)
 	_summary.text = "this session: " + " + ".join(parts)

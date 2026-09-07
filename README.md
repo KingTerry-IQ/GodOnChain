@@ -4,7 +4,7 @@
 
 GodOnChain is a Godot-powered client for **on-chain code inscriptions** — a way to store and retrieve text, files, and even full Godot applications directly on blockchains, powered by $IQ SDKs: https://iq6900.com/.
 
-Store decentralized apps, encrypted notes, or any data permanently on Solana, Monad, and more. Fetch it later by transaction ID and, for Godot `.pck`/`.zip` packages, launch them straight from the chain.
+Store decentralized apps, encrypted notes, or any data permanently on Solana, Monad, Robinhood Chain, and more. Fetch it later by transaction ID and, for Godot `.pck`/`.zip` packages, launch them straight from the chain.
 
 ## ✨ Features
 
@@ -20,7 +20,8 @@ Store decentralized apps, encrypted notes, or any data permanently on Solana, Mo
   - Public (no encryption)
   - AES-256-CBC + PBKDF2 (passphrase)
   - HanLock (backend-assisted)
-- **Multi-chain support**: SOL (Solana), MON (Monad)
+- **Multi-chain support**: SOL (Solana), MON (Monad), RH (Robinhood Chain —
+  an Ethereum-compatible L2, chain id 4663, fees paid in ETH)
 - **Encrypted key vault** — signing keys sit under a master password, and are
   never handed to the apps you launch
 - **Beautifully unhinged loading screen** — crypto memes + heavy TempleOS / Terry A. Davis energy
@@ -71,7 +72,9 @@ Service details, including the security model, are in
   was exported with, but a more recent version may work fine depending on the
   existence of breaking changes to the engine since then.)
 - Funds + a signing key on the target chain for uploads (the client estimates
-  costs). Reading needs no key at all.
+  costs). Reading needs no key at all. Each chain reads its own key, so a
+  Monad key does not let you write to Robinhood Chain and vice versa, even
+  though both are EVM.
 - A master password of your choosing, which encrypts those keys at rest.
 
 ## 🚀 Getting Started

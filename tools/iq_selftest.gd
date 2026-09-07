@@ -115,6 +115,16 @@ func _run() -> void:
 	check("unlocked after save", host.is_unlocked)
 	check("can write once unlocked", host.can_write("sol"))
 	check("cannot write MON without a MON key", not host.can_write("mon"))
+	check("cannot write RH without an RH key", not host.can_write("rh"))
+
+	# Each chain reads its own vault entry. A signer for one must never satisfy
+	# another: that would send the user to an approval prompt for a write that
+	# can only fail, having named a chain they cannot sign for.
+	host.secrets["RH_SIGNER_PRIVATE_KEY"] = "0xTEST_RH_KEY"
+	check("an RH key unlocks RH writes", host.can_write("rh"))
+	check("  and by its long name too", host.can_write("robinhood"))
+	check("  without unlocking MON", not host.can_write("mon"))
+	host.secrets["RH_SIGNER_PRIVATE_KEY"] = ""
 
 	host.lock()
 	check("lock clears secrets", str(host.secrets["SOLANA_SIGNER_PRIVATE_KEY"]) == "")
@@ -427,14 +437,44 @@ func _test_costs() -> void:
 	check("  crossing a chunk boundary costs more",
 		IQCosts.estimate("mon", 80_000) > IQCosts.estimate("mon", 60_000))
 
+	check("robinhood is recognised by either name",
+		IQCosts.is_robinhood("rh") and IQCosts.is_robinhood("ROBINHOOD")
+		and not IQCosts.is_robinhood("mon"))
+	check("  and counts as an EVM chain", IQCosts.is_evm("rh") and IQCosts.is_evm("mon")
+		and not IQCosts.is_evm("sol"))
+	check("  priced inline below the limit",
+		IQCosts.estimate("rh", IQCosts.RH_INLINE_LIMIT) == IQCosts.RH_BASIC_FEE,
+		"%f" % IQCosts.estimate("rh", IQCosts.RH_INLINE_LIMIT))
+	check("  and at the linked-list fee above it",
+		IQCosts.estimate("rh", IQCosts.RH_INLINE_LIMIT + 1) == IQCosts.RH_LINKED_FEE,
+		"%f" % IQCosts.estimate("rh", IQCosts.RH_INLINE_LIMIT + 1))
+	check("  a second batch costs a second fee",
+		IQCosts.estimate("rh", IQCosts.RH_CHUNK_BYTES + 1)
+		> IQCosts.estimate("rh", IQCosts.RH_CHUNK_BYTES))
+	check("  and it settles in ETH, not a chain-named token",
+		IQCosts.token("rh") == "ETH" and IQCosts.token("mon") == "MON"
+		and IQCosts.token("sol") == "SOL")
+
+	# Every spelling has to land on the one code the sidecar and the activity
+	# tally key on, or a session's spends get counted under two headings.
+	check("chain codes are canonical",
+		IQCosts.code("ROBINHOOD") == "rh" and IQCosts.code("MONAD") == "mon"
+		and IQCosts.code("solana") == "sol")
+
 	# Each chain at the precision it deserves: fractions of a SOL are
-	# meaningful at six places, fractions of a MON are not.
+	# meaningful at six places, fractions of a MON are not, and an ETH fee on
+	# Robinhood Chain disappears entirely under five.
 	check("solana formats to six places", IQCosts.format("sol", 0).contains("SOL"),
 		IQCosts.format("sol", 0))
 	check("monad formats to four", IQCosts.format("mon", 0).contains("MON"),
 		IQCosts.format("mon", 0))
-	check("  both marked as estimates", IQCosts.format("sol", 0).begins_with("~")
-		and IQCosts.format("mon", 0).begins_with("~"))
+	check("robinhood formats to five", IQCosts.format("rh", 0).contains("ETH"),
+		IQCosts.format("rh", 0))
+	check("  at a precision that survives the fee",
+		IQCosts.format("rh", 0) != "~0.00000 ETH", IQCosts.format("rh", 0))
+	check("  all marked as estimates", IQCosts.format("sol", 0).begins_with("~")
+		and IQCosts.format("mon", 0).begins_with("~")
+		and IQCosts.format("rh", 0).begins_with("~"))
 
 	# Negative bytes cannot happen, but a cost model that returns a negative
 	# price if they did would be quoting the user a refund.

@@ -12,11 +12,13 @@
 	"build:linux": "bash build-linux.sh",
 	"test:scopes": "node tests/run-readgate.mjs",
 	"test:activity": "node tests/run-readgate.mjs activity.mjs",
-	"test:naming": "node tests/run-readgate.mjs naming.mjs"
+	"test:naming": "node tests/run-readgate.mjs naming.mjs",
+	"test:chains": "node tests/run-readgate.mjs chains.mjs",
+	"test:turns": "node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON tests/evm-turns.mjs"
   },
   "license": "ISC",
   "dependencies": {
-	"@iqlabs-official/ethereum-sdk": "^0.2.2",
+	"@iqlabs-official/ethereum-sdk": "^0.3.0",
 	"@iqlabs-official/solana-sdk": "0.1.27",
 	"@noble/curves": "^2.4.0",
 	"@solana/web3.js": "^1.98.4",

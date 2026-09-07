@@ -74,6 +74,27 @@ If `bin/` is empty but `build/sidecar.cjs` exists, `IQHost` falls back to
 running the bundle through a local `node`, so you can iterate from the editor
 without a full build.
 
+## Chains
+
+Three: `sol` (Solana), `mon` (Monad) and `rh` (Robinhood Chain). The long
+spellings — `solana`, `monad`, `robinhood` — are accepted everywhere the short
+code is, and every route reports back the short one. An unrecognised chain is a
+400, never a silent fall back to Solana: a guess here spends real funds
+somewhere the caller did not name.
+
+`mon` and `rh` are the same IQ Labs Ethereum SDK against different
+deployments, so they share every code path. Adding another EVM chain means one
+entry in `EVM_CHAINS` in `helpers.ts` — its SDK network mode, its currency,
+and the two environment variables it reads — and nothing else.
+
+They do need taking in turns, though. The SDK holds its active network in
+module state, and that state picks the contract address a write is signed
+against; two chains overlapping would send a Monad write to the Robinhood
+deployment or the reverse. `evm_network.ts` is that turn-taking, kept separate
+from the SDK so it can be tested without one. Requests on the chain already
+held join its turn, so concurrent reads still overlap; they queue once the
+other chain is waiting, so neither can starve the other.
+
 ## Security model
 
 The process holds funded signers, so:
@@ -94,7 +115,9 @@ The process holds funded signers, so:
   without reaping it, so it never lingers holding keys.
 
 Keys come from the environment at spawn (`SOLANA_SIGNER_PRIVATE_KEY`,
-`MON_SIGNER_PRIVATE_KEY`, `HANLOCK_PASS`, and the two RPC URLs). GodOnChain
+`MON_SIGNER_PRIVATE_KEY`, `RH_SIGNER_PRIVATE_KEY`, `HANLOCK_PASS`, and the
+three RPC URLs — `SOLANA_RPC_URL`, `MONAD_RPC_URL`, `ROBINHOOD_RPC_URL`; each
+falls back to a public default). GodOnChain
 keeps them in an encrypted vault under `user://`, opened with a master
 password the user chooses, and sets them in the environment just long enough
 to spawn this process. Callers never send or see a key.
@@ -152,6 +175,25 @@ Godot --headless --path . --script res://tools/iq_apptest.gd
 The cross-process one: launches `examples/onchain_hello` as its own Godot
 process with a minted token, and answers the approval its write raises. This
 is what proves a launched app can reach the SDK without keys or extensions.
+
+```bash
+npm run test:chains
+```
+
+Which chain a request is understood to be for, end to end: every accepted
+spelling resolving to one code, an unknown chain refused rather than guessed
+at, and a Robinhood write reaching the prompt named and sized. It reaches no
+chain — a request that gets that far is refused at the gate.
+
+```bash
+npm run test:turns
+```
+
+The turn-taking in `evm_network.ts`, in-process and without a sidecar: that two
+chains never overlap, that same-chain requests still share a turn, that a busy
+chain cannot starve a quiet one, and that a turn is released even when the work
+throws. This is the one new piece that can lose money quietly, so it is tested
+on its own rather than only through the routes that use it.
 
 ## Upstream
 

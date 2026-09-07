@@ -1,11 +1,65 @@
 import { ethers } from "ethers";
 
-export function getNormalizedChain(chain?: string): "sol" | "mon" {
-  const c = (chain || "sol").toLowerCase();
-  if (!["sol", "mon"].includes(c)) {
-    throw new Error("Invalid chain. Use 'sol' or 'mon'");
+/** Every chain this service speaks, by the short code callers pass. */
+export type Chain = "sol" | "mon" | "rh";
+
+/**
+ * The EVM chains, and everything that differs between them.
+ *
+ * They run the same IQ Labs Ethereum SDK against different deployments, so
+ * adding another is an entry here rather than a branch anywhere else.
+ * `network` is the SDK's own mode name; the chain id and contract address for
+ * each live in the SDK and are deliberately not copied here, because a second
+ * copy of a contract address is one that can go stale.
+ */
+export const EVM_CHAINS = {
+  mon: {
+    network: "monad",
+    label: "Monad",
+    currency: "MON",
+    rpcEnv: "MONAD_RPC_URL",
+    defaultRpc: "https://rpc.monad.xyz",
+    keyEnv: "MON_SIGNER_PRIVATE_KEY",
+  },
+  rh: {
+    network: "robinhood",
+    label: "Robinhood Chain",
+    currency: "ETH",
+    rpcEnv: "ROBINHOOD_RPC_URL",
+    defaultRpc: "https://rpc.mainnet.chain.robinhood.com",
+    keyEnv: "RH_SIGNER_PRIVATE_KEY",
+  },
+} as const;
+
+export type EvmChain = keyof typeof EVM_CHAINS;
+
+export function isEvmChain(chain: string): chain is EvmChain {
+  return Object.prototype.hasOwnProperty.call(EVM_CHAINS, chain);
+}
+
+/**
+ * Accepted spellings. The short code is what everything downstream uses; the
+ * long names exist because a caller who has read the IQ Labs docs reaches for
+ * "robinhood" or "monad" before "rh" or "mon".
+ */
+const CHAIN_ALIASES: Record<string, Chain> = {
+  sol: "sol",
+  solana: "sol",
+  mon: "mon",
+  monad: "mon",
+  rh: "rh",
+  rhc: "rh",
+  robinhood: "rh",
+  "robinhood-chain": "rh",
+};
+
+export function getNormalizedChain(chain?: string): Chain {
+  const c = (chain || "sol").toLowerCase().trim();
+  const hit = CHAIN_ALIASES[c];
+  if (!hit) {
+    throw new Error("Invalid chain. Use 'sol', 'mon' or 'rh'");
   }
-  return c as "sol" | "mon";
+  return hit;
 }
 
 export function safeParseMetadata(raw: string | null | undefined): Record<string, any> {
@@ -97,10 +151,12 @@ export function decodeBorshStrings(buffer: Buffer): string[] {
 }
 
 /** 
- * Precise metadata extractor for Monad/EVM using known contract function signatures.
- * Mirrors the Solana decodeUserInventoryCodeIn + decodeBorshStrings logic.
+ * Precise metadata extractor for the EVM chains, using known contract function
+ * signatures. Mirrors the Solana decodeUserInventoryCodeIn + decodeBorshStrings
+ * logic. The CodeIn contract has the same shape on every EVM deployment, so
+ * this reads Monad and Robinhood Chain alike.
  */
-export function extractMonadMetadata(tx: any, receipt: any): { 
+export function extractEvmMetadata(tx: any, receipt: any): { 
   metadata?: string; 
   onChainPath?: string;
   handle?: string;
