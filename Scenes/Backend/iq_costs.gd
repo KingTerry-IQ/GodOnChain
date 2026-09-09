@@ -20,7 +20,8 @@ const SOL_FINAL_TX := 0.005005
 ## Monad charges per much larger chunk, and the base is the dominant term.
 const MON_CHUNK_BYTES := 70656
 const MON_PER_CHUNK := 0.415971708
-const MON_FINAL_TX := 6.51834143
+const MON_BASIC_FEE := 6.5
+const MON_FINAL_TX := 19.5
 
 ## Robinhood Chain prices by *which path* a write takes rather than by size:
 ## a payload that fits inline pays the basic fee, and anything larger is
@@ -28,6 +29,7 @@ const MON_FINAL_TX := 6.51834143
 ## which is also its gas token. Figures are the documented protocol fees.
 const RH_INLINE_LIMIT := 700
 const RH_CHUNK_BYTES := 98_304  # ~96 KB per batch
+const RH_PER_CHUNK := 0.000036029400056
 const RH_BASIC_FEE := 0.00012
 const RH_LINKED_FEE := 0.00036
 
@@ -76,9 +78,11 @@ static func estimate(chain: String, bytes: int) -> float:
 			return RH_BASIC_FEE
 		@warning_ignore("integer_division")
 		var rh_batches: int = (payload + RH_CHUNK_BYTES - 1) / RH_CHUNK_BYTES
-		return RH_LINKED_FEE * maxi(rh_batches, 1)
+		return RH_LINKED_FEE + RH_PER_CHUNK * maxi(rh_batches, 1)
 
 	if is_monad(chain):
+		if payload <= RH_INLINE_LIMIT:
+			return MON_BASIC_FEE
 		@warning_ignore("integer_division")
 		var mon_chunks: int = (payload + MON_CHUNK_BYTES - 1) / MON_CHUNK_BYTES
 		return MON_FINAL_TX + mon_chunks * MON_PER_CHUNK

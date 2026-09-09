@@ -184,9 +184,9 @@ func read_code_in_file(
 		return
 	var decrypted: String = await data_handler.decrypt(response.data, encrypt_type, encrypt_pass)
 	downloaded_data = _base64_to_raw(decrypted)
-	var metadata = JSON.parse_string(response.metadata)
-	var filename: String = metadata.filename
-	var filetype: String = metadata.filetype
+	var metadata: Dictionary = (response.metadata if response.metadata is Dictionary else (JSON.parse_string(response.metadata) if response.metadata is String and JSON.parse_string(response.metadata) is Dictionary else {}))
+	var filename: String = metadata.get("filename", metadata.get("handle", ""))
+	var filetype: String = metadata.get("filetype", metadata.get("typeField", ""))
 	if filetype.is_empty():
 		filetype = filename.get_extension() #This generally shouldn't happen
 	file_download_dialog.clear_filters()
@@ -240,8 +240,9 @@ func read_code_in_godot_pck(
 		load_failed.emit()
 		return
 	var decrypted: String = await data_handler.decrypt(response.data, encrypt_type, encrypt_pass)
+	print(response.metadata)
 	downloaded_data = _base64_to_raw(decrypted)
-	var metadata: Dictionary = response.metadata if response.metadata is Dictionary else (JSON.parse_string(response.metadata) or {}) if response.metadata is String else {}
+	var metadata: Dictionary = (response.metadata if response.metadata is Dictionary else (JSON.parse_string(response.metadata) if response.metadata is String and JSON.parse_string(response.metadata) is Dictionary else {}))
 	var filename: String = metadata.get("filename", metadata.get("handle", ""))
 	var filetype: String = metadata.get("filetype", metadata.get("typeField", ""))
 	if filetype != "pck" && filetype != "zip":

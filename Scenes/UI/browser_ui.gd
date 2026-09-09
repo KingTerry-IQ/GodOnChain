@@ -203,6 +203,7 @@ func _on_load_button_pressed() -> void:
 #region Bookmarks
 
 func load_bookmarks() -> void:
+	bookmarks = []
 	if not FileAccess.file_exists(BOOKMARKS_PATH):
 		return
 	var file = FileAccess.open(BOOKMARKS_PATH, FileAccess.READ)
@@ -213,12 +214,17 @@ func load_bookmarks() -> void:
 		var parse_result = json.parse(json_str)
 		if parse_result == OK:
 			bookmarks = json.data if json.data is Array else []
+			# Earlier builds wrote Terry's picks into this file. They now live
+			# in code so updates can add more, and so they cannot be deleted.
+			if _strip_seeded_terry_copies(bookmarks):
+				save_bookmarks()
 		else:
 			print("Error parsing bookmarks: ", json.get_error_message())
 			bookmarks = []
 
 
 func save_bookmarks() -> void:
+	_strip_seeded_terry_copies(bookmarks)
 	var file = FileAccess.open(BOOKMARKS_PATH, FileAccess.WRITE)
 	if file:
 		var json_str = JSON.stringify(bookmarks)
@@ -230,22 +236,168 @@ func update_bookmark_tree() -> void:
 	bookmark_tree.clear()
 	var root := bookmark_tree.create_item()
 	root.set_text(0, "root")
-	_populate_tree(root, bookmarks)
+	var merged_folder_names := {}
+	for folder in _terry_default_bookmarks():
+		var fname := str(folder.get("name", ""))
+		merged_folder_names[fname] = true
+		var ti := bookmark_tree.create_item(root)
+		_style_bookmark_tree_item(ti, folder)
+		_populate_tree(ti, folder.get("children", []))
+		var user_folder := _find_root_folder(fname)
+		if not user_folder.is_empty():
+			_populate_tree(ti, user_folder.get("children", []))
+	var user_rest: Array = []
+	for item in bookmarks:
+		if item.get("is_folder", false) and merged_folder_names.has(str(item.get("name", ""))):
+			continue
+		user_rest.append(item)
+	_populate_tree(root, user_rest)
+
 
 func _populate_tree(parent: TreeItem, items: Array) -> void:
 	for item in items:
 		var ti := bookmark_tree.create_item(parent)
 		var is_folder = item.get("is_folder", false)
-		var display_name = item.get("name", "unnamed")
+		_style_bookmark_tree_item(ti, item)
 		if is_folder:
-			ti.set_text(0, "[F] " + display_name)
-			ti.set_custom_color(0, Color(0.4, 0.95, 0.5))
+			_populate_tree(ti, item.get("children", []))
+
+
+func _style_bookmark_tree_item(ti: TreeItem, item: Dictionary) -> void:
+	var locked: bool = _is_terry_item(item)
+	if item.get("is_folder", false):
+		ti.set_text(0, "[F] " + str(item.get("name", "unnamed")))
+		ti.set_custom_color(0, Color(0.95, 0.8, 0.35) if locked else Color(0.4, 0.95, 0.5))
+	else:
+		var prefix := "★ " if locked else "  "
+		ti.set_text(0, prefix + _bookmark_display_name(item))
+		if locked:
+			ti.set_custom_color(0, Color(0.95, 0.8, 0.35))
+	if locked:
+		ti.set_tooltip_text(0, "Terry's pick — stays in the sidebar")
+	ti.set_metadata(0, item)
+
+
+func _chain_label(chain_idx: int) -> String:
+	if chain_option and chain_idx >= 0 and chain_idx < chain_option.item_count:
+		return chain_option.get_item_text(chain_idx)
+	return ""
+
+
+## Stored name plus a chain tag, e.g. "GOD [SOL]". Skips the tag if the name
+## already ends with it so user-typed suffixes are not doubled.
+func _bookmark_display_name(item: Dictionary) -> String:
+	var display_name: String = str(item.get("name", "unnamed"))
+	var chain_tag := _chain_label(int(item.get("chain", 1)))
+	if chain_tag.is_empty():
+		return display_name
+	var suffix := " [%s]" % chain_tag
+	if display_name.ends_with(suffix):
+		return display_name
+	return display_name + suffix
+
+
+func _is_terry_item(item: Dictionary) -> bool:
+	return bool(item.get("terry", false))
+
+
+func _make_bookmark(bname: String, tx_id: String, data_type: int, chain: int) -> Dictionary:
+	return {
+		"name": bname,
+		"id": tx_id,
+		"passphrase": "",
+		"type": data_type,
+		"encrypt": 0,
+		"chain": chain,
+		"terry": true,
+	}
+
+
+func _make_folder(fname: String, children: Array) -> Dictionary:
+	return { "name": fname, "is_folder": true, "children": children, "terry": true }
+
+
+func _terry_folder_names() -> Dictionary:
+	var names := {}
+	for folder in _terry_default_bookmarks():
+		var fname := str(folder.get("name", ""))
+		if not fname.is_empty():
+			names[fname] = true
+	return names
+
+
+func _terry_inscription_ids() -> Dictionary:
+	var ids := {}
+	for folder in _terry_default_bookmarks():
+		for child in folder.get("children", []):
+			var tx_id := str(child.get("id", ""))
+			if not tx_id.is_empty():
+				ids[tx_id] = true
+	return ids
+
+
+## Drops copies of Terry's picks that were saved into the user file by older
+## builds, plus empty folders that only existed to hold them.
+func _strip_seeded_terry_copies(arr: Array) -> bool:
+	var terry_ids := _terry_inscription_ids()
+	var terry_folders := _terry_folder_names()
+	return _strip_terry_recursive(arr, terry_ids, terry_folders)
+
+
+func _strip_terry_recursive(arr: Array, terry_ids: Dictionary, terry_folders: Dictionary) -> bool:
+	var mutated := false
+	for i in range(arr.size() - 1, -1, -1):
+		var item = arr[i]
+		if not item is Dictionary:
+			continue
+		if item.get("is_folder", false):
 			var kids: Array = item.get("children", [])
-			ti.set_metadata(0, item)
-			_populate_tree(ti, kids)
+			if _strip_terry_recursive(kids, terry_ids, terry_folders):
+				mutated = true
+			var fname := str(item.get("name", ""))
+			if _is_terry_item(item) or (terry_folders.has(fname) and kids.is_empty()):
+				arr.remove_at(i)
+				mutated = true
 		else:
-			ti.set_text(0, "  " + display_name)
-			ti.set_metadata(0, item)
+			var tx_id := str(item.get("id", ""))
+			if _is_terry_item(item) or (not tx_id.is_empty() and terry_ids.has(tx_id)):
+				arr.remove_at(i)
+				mutated = true
+	return mutated
+
+
+func _find_root_folder(fname: String) -> Dictionary:
+	for item in bookmarks:
+		if item is Dictionary and item.get("is_folder", false) and str(item.get("name", "")) == fname:
+			return item
+	return {}
+
+
+## Always-present sidebar: Terry's picks, grouped the way they are meant to be used.
+func _terry_default_bookmarks() -> Array[Variant]:
+	const SOL := 0
+	const MON := 1
+	return [
+		_make_folder("MON Godot apps", [
+			_make_bookmark("GOD", "0x495cbc05d9e6a4ae78614955df116c61f15673fbfbe116ad8be84bf7e8c617f8", DataType.GODOT_PCK, MON),
+			_make_bookmark("GodGivesSatoshiSeedPhrase", "0x0d0871dd2446a3ef83dc1578e3efbd63e4fb7ba53f56d9738f3d9c0bf07271ce", DataType.GODOT_PCK, MON),
+			_make_bookmark("GodDoodle", "0x71029e2791594e51e6ac30b1a069e2de477d07ada6c49d8cd6ea7ce19575072a", DataType.GODOT_PCK, MON),
+			_make_bookmark("BurningBushProtocol", "0x368babd9dfd16ca377732a9e18627e72d0870e445544072604b14248f5d65526", DataType.GODOT_PCK, MON),
+		]),
+		_make_folder("MON Downloadable Files", [
+			_make_bookmark("TempleOS ISO", "0x2b04df7d6ea4103d25a98208c93dc11e2978a48d95de03c2d1c0226f5f548db3", DataType.DOWNLOADABLE_FILE, MON),
+		]),
+		_make_folder("SOL Godot apps", [
+			_make_bookmark("GOD", "FVBWr5tASdzcaDBu7QgoEz1pbiNLqcWNcnmtdA8PkMEpr4j4ZbKK62T7bjVsY3HWw2Q8SfyFkX8jjcYVVEtPGdB", DataType.GODOT_PCK, SOL),
+			_make_bookmark("Pong", "4pWighbsUxyzvUn1RmEbFxEVZwc97r5CivYNqFGZs9upD7eHxu1mbo6EaPfp5ifJL6EghpCVvuEGX94hvMsQ3y3r", DataType.GODOT_PCK, SOL),
+			_make_bookmark("DOOM", "3XxCCCirmnFRTJuuXzWN7U7ify64j5qhUEUhZSKGe2BvCY5RznwRJ9ZJyrCXQRZhGR5QSpyk3Y4SJtm6qDR8jo7s", DataType.GODOT_PCK, SOL),
+			_make_bookmark("Pixelorama", "56JdKH2UnxM597oPH6XvEjm1vf8Zu5kmDjBnJhNb7UftS8UikAtYhz161Zp7oBqJ8NGxmzsvsnoD3GxsTFHpCavv", DataType.GODOT_PCK, SOL),
+			_make_bookmark("GodotOS", "63XqBqdKLVUSbWu395tiLUwGKku9aNLB6RWVHAakqg2bPcZgAddD7sDWzy8ENmPfsubxTn56MLGm9h5vEjJpisqm", DataType.GODOT_PCK, SOL),
+		]),
+		_make_folder("SOL Downloadable Files", [
+			_make_bookmark("Quran", "5MeE35tzrCCoSEEUNCcg8xt4L5qAKeMrKMPLYr9mqe6zy4ZTdtcKnz1Z1WNtGVDqVkMLdLhnjjbTve3hwBbWaCDB", DataType.DOWNLOADABLE_FILE, SOL),
+		]),
+	]
 
 
 func _on_add_bookmark_button_pressed() -> void:
@@ -273,11 +425,14 @@ func _on_confirm_add_bookmark_button_pressed() -> void:
 	if id.is_empty() or bname.is_empty():
 		_show_status("ID and Name cannot be empty.")
 		return
+	if _terry_inscription_ids().has(id):
+		_show_status("That's already one of Terry's picks.")
+		return
 	var bm := { "name": bname, "id": id, "passphrase": passphrase, "type": data_type, "encrypt": encrypt, "chain": chain }
 	_add_bookmark_to_folder(bm, folder_choice)
 	save_bookmarks()
 	update_bookmark_tree()
-	_show_status("Bookmark added: %s" % bname)
+	_show_status("Bookmark added: %s" % _bookmark_display_name(bm))
 	add_bookmark_panel.hide()
 
 
@@ -296,8 +451,9 @@ func _on_bookmark_tree_item_selected() -> void:
 	if data.is_empty():
 		return
 	var is_folder: bool = data.get("is_folder", false)
-	delete_bookmark_button.disabled = false
-	move_bookmark_button.disabled = is_folder
+	var locked: bool = _is_terry_item(data)
+	delete_bookmark_button.disabled = locked
+	move_bookmark_button.disabled = is_folder or locked
 	if not is_folder:
 		id_input.text = data.get("id", "")
 		pass_input.text = data.get("passphrase", "")
@@ -308,7 +464,7 @@ func _on_bookmark_tree_item_selected() -> void:
 		_on_data_type_option_item_selected(data.get("type", 0))
 		if data.get("type", 0) == DataType.DB_TABLE_ROWS:
 			db_before_input.text = ""  # before is session-only, not bookmarked
-		_set_content_title("Bookmark: " + data.get("name", ""))
+		_set_content_title("Bookmark: " + _bookmark_display_name(data))
 	else:
 		# folder selected: clear inputs or leave, just show status
 		_set_content_title("Folder: " + data.get("name", ""))
@@ -323,6 +479,9 @@ func _on_delete_bookmark_button_pressed() -> void:
 		return
 	var data: Dictionary = meta
 	if data.is_empty():
+		return
+	if _is_terry_item(data):
+		_show_status("Terry's picks stay in the sidebar.")
 		return
 	var bm_name: String = data.get("name", "item")
 	if data.get("is_folder", false):
@@ -363,6 +522,9 @@ func _on_confirm_folder_pressed() -> void:
 	if fname.is_empty():
 		_show_status("Folder name cannot be empty.")
 		return
+	if _terry_folder_names().has(fname):
+		_show_status("Folder '%s' is reserved for Terry's picks." % fname)
+		return
 	# Prevent duplicate folder names at root for simplicity
 	for item in bookmarks:
 		if item.get("is_folder", false) and item.get("name", "") == fname:
@@ -383,9 +545,9 @@ func _on_move_bookmark_button_pressed() -> void:
 	if meta == null or not (meta is Dictionary):
 		return
 	var data: Dictionary = meta
-	if data.is_empty() or data.get("is_folder", false):
+	if data.is_empty() or data.get("is_folder", false) or _is_terry_item(data):
 		return
-	move_prompt_current.text = "Selected: " + data.get("name", "")
+	move_prompt_current.text = "Selected: " + _bookmark_display_name(data)
 	populate_folder_options(move_prompt_target)
 	# Optionally preselect root or current parent - simple for now
 	move_prompt.show()
@@ -405,7 +567,7 @@ func _on_confirm_move_pressed() -> void:
 		move_prompt.hide()
 		return
 	var data: Dictionary = meta
-	if data.is_empty() or data.get("is_folder", false):
+	if data.is_empty() or data.get("is_folder", false) or _is_terry_item(data):
 		move_prompt.hide()
 		return
 	var target: String = move_prompt_target.get_item_text(move_prompt_target.selected) if move_prompt_target.selected >= 0 else "[Root]"
@@ -428,26 +590,36 @@ func _on_confirm_move_pressed() -> void:
 func populate_folder_options(opt: OptionButton) -> void:
 	opt.clear()
 	opt.add_item("[Root]")
+	var seen := {}
+	for folder in _terry_default_bookmarks():
+		var fname := str(folder.get("name", ""))
+		if not fname.is_empty() and not seen.has(fname):
+			opt.add_item(fname)
+			seen[fname] = true
 	for item in bookmarks:
 		if item.get("is_folder", false):
-			opt.add_item(item.get("name", ""))
+			var fname := str(item.get("name", ""))
+			if not seen.has(fname):
+				opt.add_item(fname)
+				seen[fname] = true
 
 
 func _add_bookmark_to_folder(bm: Dictionary, folder_choice: String) -> void:
 	if folder_choice == "[Root]" or folder_choice.is_empty():
 		bookmarks.append(bm)
-	else:
-		for item in bookmarks:
-			if item.get("is_folder", false) and item.get("name", "") == folder_choice:
-				if not item.has("children"):
-					item["children"] = []
-				item.children.append(bm)
-				return
-		# folder not found, fallback
-		bookmarks.append(bm)
+		return
+	var existing := _find_root_folder(folder_choice)
+	if not existing.is_empty():
+		if not existing.has("children"):
+			existing["children"] = []
+		existing.children.append(bm)
+		return
+	bookmarks.append({ "name": folder_choice, "is_folder": true, "children": [bm] })
 
 
 func _remove_item_from_bookmarks(target: Dictionary) -> bool:
+	if _is_terry_item(target):
+		return false
 	return _remove_recursive(bookmarks, target)
 
 

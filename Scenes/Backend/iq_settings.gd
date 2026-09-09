@@ -176,13 +176,23 @@ func _build_open_button(root: Control) -> void:
 	_open_button = Button.new()
 	_open_button.text = "KEYS"
 	_open_button.tooltip_text = "Signing keys and RPC endpoints for the on-chain service"
-	_open_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_open_button.offset_left = -104
-	_open_button.offset_top = 8
-	_open_button.offset_right = -12
-	_open_button.offset_bottom = 34
+	_open_button.custom_minimum_size = Vector2(88, 48)
+	_open_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_open_button.pressed.connect(open)
-	root.add_child(_open_button)
+	# Sit in the header to the left of BUY $IQ rather than floating over it.
+	var header := root.get_node_or_null("Panel/MarginContainer/MainVBox/Header/HBox")
+	var buy := header.get_node_or_null("BuyIQButton") if header else null
+	if header:
+		header.add_child(_open_button)
+		if buy:
+			header.move_child(_open_button, buy.get_index())
+	else:
+		_open_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		_open_button.offset_left = -104
+		_open_button.offset_top = 8
+		_open_button.offset_right = -12
+		_open_button.offset_bottom = 34
+		root.add_child(_open_button)
 
 
 ## Shows the keys screen, prefilled with whatever is currently unlocked.

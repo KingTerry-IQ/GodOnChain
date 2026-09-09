@@ -15,7 +15,7 @@ Store decentralized apps, encrypted notes, or any data permanently on Solana, Mo
   - Downloadable arbitrary files
   - **Executable Godot apps** — download, optionally cache, and run `.pck` / `.zip` using a local Godot binary
 - **"Code In" inscriptions** — write new text or upload files to the blockchain with live cost estimates
-- **Bookmarks** — save and quickly reload your favorite inscriptions with full settings (chain, encryption, data type); now organizeable into folders (root-level) with tree view, create/move/delete support in the sidebar. Old flat bookmarks auto-migrate as root items.
+- **Bookmarks** — save and quickly reload your favorite inscriptions with full settings (chain, encryption, data type); now organizeable into folders (root-level) with tree view, create/move/delete support in the sidebar. Old flat bookmarks auto-migrate as root items. Names in the sidebar show the chain they belong to (e.g. `[SOL]`). Terry's picks are always present, cannot be deleted, and grow with app updates.
 - **Encryption options**
   - Public (no encryption)
   - AES-256-CBC + PBKDF2 (passphrase)
@@ -99,7 +99,7 @@ Service details, including the security model, are in
 
 Downloads (files & PCKs) go to `user://downloads` and `user://app/<signature>/`.
 
-Bookmarks are stored in `user://bookmarks.json`.
+User bookmarks are stored in `user://bookmarks.json`. Terry's picks are part of the app, not that file, so they survive updates and cannot be removed.
 
 ## 🖥️ Exporting
 

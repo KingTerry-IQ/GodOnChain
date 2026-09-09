@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://b5ireg52h0sme" path="res://Scenes/Backend/iqsdk.tscn" id="4_uey33"]
 [ext_resource type="PackedScene" uid="uid://dugrnyolfwrmh" path="res://Scenes/Backend/data_handler.tscn" id="5_f8u0t"]
 [ext_resource type="Texture2D" uid="uid://dp8pvvkfill2m" path="res://Assets/icon.png" id="icon_tex"]
+[ext_resource type="Script" path="res://Scenes/UI/buy_iq_button.gd" id="6_buyiq"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
 bg_color = Color(0.02, 0.05, 0.02, 1)
@@ -20,6 +21,60 @@ bg_color = Color(0.05882353, 0.05882353, 0.05882353, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_urnrq"]
 bg_color = Color(0, 0, 0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_buy_iq"]
+content_margin_left = 18.0
+content_margin_top = 8.0
+content_margin_right = 18.0
+content_margin_bottom = 8.0
+bg_color = Color(0.15, 1, 0.2, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.92, 0.15, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0.2, 1, 0.2, 0.75)
+shadow_size = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_buy_iq_hover"]
+content_margin_left = 18.0
+content_margin_top = 8.0
+content_margin_right = 18.0
+content_margin_bottom = 8.0
+bg_color = Color(1, 0.92, 0.15, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.2, 1, 0.3, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(1, 0.9, 0.15, 0.8)
+shadow_size = 16
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_buy_iq_pressed"]
+content_margin_left = 18.0
+content_margin_top = 8.0
+content_margin_right = 18.0
+content_margin_bottom = 8.0
+bg_color = Color(0.7, 0.85, 0.05, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.9, 0.8, 0.1, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0.2, 1, 0.2, 0.4)
+shadow_size = 4
 
 [node name="BrowserUI" type="Control" unique_id=327621474]
 layout_mode = 3
@@ -60,7 +115,7 @@ layout_mode = 2
 theme_override_constants/separation = 6
 
 [node name="Header" type="Panel" parent="Panel/MarginContainer/MainVBox" unique_id=1407764230]
-custom_minimum_size = Vector2(0, 64)
+custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_header")
 
@@ -99,16 +154,24 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 11
 text = "INSCRIBE • RETRIEVE • EXECUTE • ON-CHAIN INSCRIPTIONS POWERED BY $IQ"
 
-[node name="BuyIQButton" type="LinkButton" parent="Panel/MarginContainer/MainVBox/Header/HBox" unique_id=1407764236]
+[node name="BuyIQButton" type="Button" parent="Panel/MarginContainer/MainVBox/Header/HBox" unique_id=1407764236]
+custom_minimum_size = Vector2(176, 48)
 layout_mode = 2
 size_flags_vertical = 4
 tooltip_text = "Open the $IQ chart on DexScreener"
-theme_override_colors/font_color = Color(0, 1, 0.2, 1)
-theme_override_colors/font_hover_color = Color(0.6, 1, 0.7, 1)
-theme_override_font_sizes/font_size = 16
-text = "BUY $IQ ↗"
-uri = "https://dexscreener.com/solana/3uXACfojUrya7VH51jVC1DCHq3uzK4A7g469Q954LABS"
-underline = 1
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_focus_color = Color(0, 0, 0, 1)
+theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
+theme_override_colors/font_hover_pressed_color = Color(0, 0.1, 0, 1)
+theme_override_colors/font_pressed_color = Color(0, 0.1, 0, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_buy_iq")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_buy_iq_pressed")
+theme_override_styles/hover = SubResource("StyleBoxFlat_buy_iq_hover")
+theme_override_styles/focus = SubResource("StyleBoxFlat_buy_iq_hover")
+text = "⚡ BUY $IQ ↗"
+mouse_default_cursor_shape = 2
+script = ExtResource("6_buyiq")
 
 [node name="MainHBox" type="HBoxContainer" parent="Panel/MarginContainer/MainVBox" unique_id=1407764229]
 layout_mode = 2
@@ -116,7 +179,7 @@ size_flags_vertical = 3
 theme_override_constants/separation = 4
 
 [node name="Bookmarks" type="Panel" parent="Panel/MarginContainer/MainVBox/MainHBox" unique_id=1123423996]
-custom_minimum_size = Vector2(220, 0)
+custom_minimum_size = Vector2(360, 0)
 layout_mode = 2
 size_flags_horizontal = 0
 
