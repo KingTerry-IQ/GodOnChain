@@ -700,7 +700,8 @@ app.get(
       // === SOLANA - Exact SDK metadata from initial tx only ===
       const tx = await solanaConnection.getTransaction(signature, {
         commitment: "confirmed",
-        maxSupportedTransactionVersion: 0,
+        // 0.2.0 writes v1 txs (4 KB chunks). RPC rejects those if this stays 0.
+        maxSupportedTransactionVersion: 1,
       });
 
       if (!tx) {
@@ -873,7 +874,7 @@ async function tolerantSolDbRows(solanaIqlabs: any, tablePda: string, options: a
     let txForSalvage: any = null;
     try {
       txForSalvage = await solanaConnection.getTransaction(sig, {
-        maxSupportedTransactionVersion: 0,
+        maxSupportedTransactionVersion: 1,
       });
       if (txForSalvage) {
         const metaExtract = extractIQLabsMetadataFromTx(txForSalvage);
@@ -1002,7 +1003,7 @@ const attachSigners = async (
           signer = (await provider!.getTransaction(signature))?.from ?? null;
         } else {
           const tx = await solanaConnection.getTransaction(signature, {
-            maxSupportedTransactionVersion: 0,
+            maxSupportedTransactionVersion: 1,
           });
           // The fee payer is the first static key, and is always a signer.
           signer =

@@ -15,10 +15,16 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="GodOnChain"
+config/version="0.1.1"
 config/tags=PackedStringArray("real")
 run/main_scene="uid://c7qba01j8nb2h"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://Assets/icon.png"
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
 
 [editor_plugins]
 
