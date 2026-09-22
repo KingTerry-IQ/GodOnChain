@@ -14,6 +14,9 @@ extends Node
 const PANEL_WIDTH := 820
 
 var host: IQHost
+## IQ_SDK, which gates reads on RPC URLs and writes on the chain's signing key
+## before this overlay asks the user to allow the app's request.
+var gate: Node
 
 var _panel: Panel
 var _title: Label
@@ -106,7 +109,21 @@ func _show_next() -> void:
 	if _showing != "" or _queue.is_empty() or _panel == null:
 		return
 	var approval: Dictionary = _queue.pop_front()
-	_showing = str(approval.get("id", ""))
+	var approval_id := str(approval.get("id", ""))
+	_showing = approval_id
+
+	# Endpoints and keys before the allow/deny question, so a yes is not
+	# followed by "and now paste a private key".
+	if gate != null and gate.has_method("ensure_for_approval"):
+		var ready: bool = await gate.ensure_for_approval(approval)
+		if _showing != approval_id:
+			_show_next()
+			return
+		if not ready:
+			_showing = ""
+			await host.resolve_approval(approval_id, false)
+			_show_next()
+			return
 
 	# Each kind is a different question, so each gets its own words. Saying
 	# "this spends from your wallet" over a read would train people to ignore
@@ -274,6 +291,7 @@ func _details(approval: Dictionary) -> String:
 		lines.append("Size:             %s" % String.humanize_size(bytes))
 
 	var scope := str(approval.get("scope", "write"))
+	var action := str(approval.get("action", ""))
 	match scope:
 		"reveal":
 			var recipients := int(details.get("recipients", 0))
@@ -288,7 +306,12 @@ func _details(approval: Dictionary) -> String:
 			# user learns to skip is one they skip over a spend too.
 			lines.append("Cost:             nothing. Reading the chain is free.")
 		_:
-			lines.append("Estimated cost:   %s" % IQCosts.format(chain, bytes))
+			lines.append("Estimated cost:   %s" % IQCosts.format(chain, bytes, action))
+			# Solana createTable's distinctive spend is rent in two new PDAs,
+			# not the protocol fee Monad sends to treasury / the dbRoot creator.
+			# Naming that here stops the number looking like an inscription.
+			if IQCosts.is_create_table(action) and not IQCosts.is_evm(chain):
+				lines.append("                  PDA rent (table + instruction log); more if dbRoot grows")
 	return "\n".join(lines)
 
 

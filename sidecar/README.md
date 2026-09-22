@@ -114,20 +114,22 @@ The process holds funded signers, so:
 - **Watchdog.** `--parent-pid` makes it exit on its own if the host dies
   without reaping it, so it never lingers holding keys.
 
-Keys come from the environment at spawn (`SOLANA_SIGNER_PRIVATE_KEY`,
+Keys come from the environment (`SOLANA_SIGNER_PRIVATE_KEY`,
 `MON_SIGNER_PRIVATE_KEY`, `RH_SIGNER_PRIVATE_KEY`, `HANLOCK_PASS`, and the
 three RPC URLs — `SOLANA_RPC_URL`, `MONAD_RPC_URL`, `ROBINHOOD_RPC_URL`; each
-falls back to a public default). GodOnChain
-keeps them in an encrypted vault under `user://`, opened with a master
-password the user chooses, and sets them in the environment just long enough
-to spawn this process. Callers never send or see a key.
+falls back to a public default). GodOnChain may set them at spawn, and can
+also push them later via `POST /control/secrets` without restarting — a guest
+request may already be parked when the user is first asked for an RPC or a
+key. Callers never send or see a key.
 
 The vault is `user://iq_secrets.cfg`, written with Godot's encrypted container
 under a key stretched from the master password with PBKDF2-HMAC-SHA256 (100k
 iterations, salt in `user://iq_secrets.salt`). The stretching matters: Godot
 hashes a passphrase straight to an AES key, which is too weak for something a
-person types. Unlocking is optional, since reads need no key — declining
-leaves the app in a read-only session.
+person types. RPC URLs are also stored in plaintext at
+`user://iq_endpoints.cfg`, because they are not secrets: a later read can use
+them without unlocking. The password is asked on the first on-chain read or
+write, not at startup; launching a cached app does not count.
 
 ## Arguments
 
@@ -149,6 +151,7 @@ Host-only, requires the `control` scope.
 | `POST /control/tokens` | Mint a scoped token for an app being launched. |
 | `GET /control/tokens` | List issued tokens. |
 | `DELETE /control/tokens/:id` | Revoke one, e.g. when its app exits. |
+| `POST /control/secrets` | `{secrets: {SOLANA_RPC_URL, …}}` live-update env. |
 | `GET /control/approvals` | Prompts waiting on the user. |
 | `POST /control/approvals/:id` | `{decision: "allow"\|"deny", remember: bool}` |
 

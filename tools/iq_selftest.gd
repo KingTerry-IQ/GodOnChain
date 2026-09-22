@@ -9,11 +9,13 @@ var failures := 0
 const TEST_SECRETS := "user://selftest_secrets.cfg"
 const TEST_SALT := "user://selftest_secrets.salt"
 const TEST_DISCOVERY := "user://selftest_host.json"
+const TEST_ENDPOINTS := "user://selftest_endpoints.cfg"
 
 
 func _clear_test_vault() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SECRETS))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SALT))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_ENDPOINTS))
 
 # Filled in by the backgrounded write below.
 var write_result: Variant = null
@@ -98,6 +100,7 @@ func _run() -> void:
 	# running GodOnChain off from every app that was talking to it — the app
 	# stays up and healthy while nothing on the machine can find it any more.
 	host.discovery_file = TEST_DISCOVERY
+	host.endpoints_path = TEST_ENDPOINTS
 	_clear_test_vault()
 
 	root.add_child(host)
@@ -107,6 +110,16 @@ func _run() -> void:
 	check("starts with no vault", not host.vault_exists())
 	check("starts locked", not host.is_unlocked)
 	check("cannot write while locked", not host.can_write("sol"))
+
+	print("\n--- endpoints ---")
+	check("asks for RPCs on a fresh machine", host.needs_rpc_prompt())
+	host.secrets["SOLANA_RPC_URL"] = "https://rpc.example.test"
+	check("save endpoints without a password", host.save_endpoints())
+	check("  remembers they were asked", host.endpoints_configured())
+	check("  so the next read will not prompt", not host.needs_rpc_prompt())
+	host.lock()
+	check("lock keeps the public RPC", str(host.secrets["SOLANA_RPC_URL"]) == "https://rpc.example.test")
+	check("  and still cannot write", not host.can_write("sol"))
 
 	host.secrets["SOLANA_SIGNER_PRIVATE_KEY"] = "TEST_SOL_KEY_base58"
 	host.secrets["HANLOCK_PASS"] = "hunter2"
@@ -141,6 +154,11 @@ func _run() -> void:
 		str(host.secrets["SOLANA_SIGNER_PRIVATE_KEY"])
 	)
 	check("  round-trips hanlock", str(host.secrets["HANLOCK_PASS"]) == "hunter2")
+	check(
+		"  round-trips the RPC",
+		str(host.secrets["SOLANA_RPC_URL"]) == "https://rpc.example.test",
+		str(host.secrets["SOLANA_RPC_URL"])
+	)
 
 	print("\n--- sidecar ---")
 	var started: bool = await host.start()
@@ -149,6 +167,14 @@ func _run() -> void:
 	if started:
 		check("bound to loopback", host.base_url.begins_with("http://127.0.0.1:"), host.base_url)
 		check("has a control token", host.control_token.length() == 64)
+		check("sidecar matches the secrets it was spawned with", host.secrets_match_sidecar())
+
+		host.secrets["SOLANA_RPC_URL"] = "https://rpc.applied.test"
+		check("an in-memory RPC change goes stale", not host.secrets_match_sidecar())
+		check("apply_secrets updates the running sidecar", await host.apply_secrets(), host.last_error)
+		check("  and the fingerprint matches again", host.secrets_match_sidecar())
+		host.secrets["SOLANA_RPC_URL"] = "https://rpc.example.test"
+		check("  a second apply restores the saved RPC", await host.apply_secrets(), host.last_error)
 
 		var discovery := host.discovery_path()
 		check("discovery file published", FileAccess.file_exists(discovery), discovery)
@@ -480,3 +506,26 @@ func _test_costs() -> void:
 	# price if they did would be quoting the user a refund.
 	check("a nonsense size still prices the base transaction",
 		IQCosts.estimate("sol", -50) == IQCosts.estimate("sol", 0))
+
+	# createTable is not a payload-free inscription. Solana parks rent in a
+	# 2803-byte table PDA plus a 9-byte instruction-table PDA (~0.0156 SOL
+	# at the current rent rate); Monad's 19.5 MON is the tableCreationFee
+	# and stays protocol revenue.
+	check("solana createTable is the PDA rent, not the write floor",
+		IQCosts.estimate("sol", 0, "createTable") == IQCosts.SOL_TABLE_RENT,
+		"%f" % IQCosts.estimate("sol", 0, "createTable"))
+	check("  and does not scale with a byte count it does not have",
+		IQCosts.estimate("sol", 100_000, "createTable")
+		== IQCosts.estimate("sol", 0, "createTable"))
+	check("  above the inscription floor, which was the old quote",
+		IQCosts.estimate("sol", 0, "createTable") > IQCosts.estimate("sol", 0))
+	check("monad createTable is the tableCreationFee",
+		IQCosts.estimate("mon", 0, "createTable") == IQCosts.MON_TABLE_FEE,
+		"%f" % IQCosts.estimate("mon", 0, "createTable"))
+	check("  not the inline write fee",
+		IQCosts.estimate("mon", 0, "createTable") != IQCosts.estimate("mon", 0))
+	check("robinhood createTable is the table fee",
+		IQCosts.estimate("rh", 0, "createTable") == IQCosts.RH_TABLE_FEE)
+	check("format carries the action through",
+		IQCosts.format("sol", 0, "createTable").contains("SOL")
+		and IQCosts.format("sol", 0, "createTable").begins_with("~"))

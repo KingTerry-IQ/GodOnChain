@@ -42,6 +42,9 @@ const RUNTIME_DIR := "user://bin/"
 
 const SECRETS_PATH := "user://iq_secrets.cfg"
 const SALT_PATH := "user://iq_secrets.salt"
+## RPC URLs are not secrets. They live here so a read can use a saved endpoint
+## without unlocking the vault that holds signing keys.
+const ENDPOINTS_PATH := "user://iq_endpoints.cfg"
 const SALT_BYTES := 16
 ## Cost of turning the master password into a key. Matches the work factor
 ## data_handler.gd already uses, and is paid once per unlock.
@@ -78,6 +81,7 @@ var secrets: Dictionary = {
 ## something the user cannot get back by re-running anything.
 var secrets_path: String = SECRETS_PATH
 var salt_path: String = SALT_PATH
+var endpoints_path: String = ENDPOINTS_PATH
 
 ## Where the discovery file is published. Overridable for the same reason the
 ## vault paths are: this file is how every other app on the machine finds a
@@ -96,11 +100,15 @@ var _approval_timer: Timer
 var _activity_seen: int = 0
 ## Approval ids we have already announced, so we only emit once each.
 var _seen_approvals: Dictionary = {}
+## Snapshot of `secrets` at the last successful spawn, so a later unlock or
+## just-in-time RPC/key can tell whether the running sidecar is stale.
+var _spawned_fingerprint: String = ""
 
 
 func _ready() -> void:
-	# Nothing is decrypted until the user supplies their master password.
-	pass
+	# Endpoints are public and safe to load without a password. Signing keys
+	# stay encrypted until the user actually reads or writes on-chain.
+	load_endpoints()
 
 
 func _notification(what: int) -> void:
@@ -173,6 +181,7 @@ func start() -> bool:
 	# Health is confirmed, so the control plane is usable. This has to be set
 	# before publishing the discovery file, which mints a token through it.
 	is_ready = true
+	_spawned_fingerprint = _secrets_fingerprint()
 
 	if not await _publish_discovery_file():
 		# Non-fatal: this app works, only externally-launched apps lose out.
@@ -196,6 +205,7 @@ func stop() -> void:
 	base_url = ""
 	control_token = ""
 	_discovery_token = ""
+	_spawned_fingerprint = ""
 	_seen_approvals.clear()
 
 
@@ -615,6 +625,9 @@ func unlock(password: String) -> bool:
 
 	is_unlocked = true
 	last_error = ""
+	# Custom RPCs now live in memory; copy them out so the next launch can
+	# read on-chain without asking for the password again.
+	save_endpoints()
 	return true
 
 
@@ -644,15 +657,18 @@ func save_secrets(password: String) -> bool:
 
 	is_unlocked = true
 	last_error = ""
+	save_endpoints()
 	return true
 
 
 ## Forgets the decrypted keys. The sidecar keeps whatever it was spawned with
-## until it is restarted.
+## until it is restarted. RPC URLs are reloaded from the plaintext store so a
+## later read still has them.
 func lock() -> void:
 	for key: String in secrets:
 		secrets[key] = ""
 	is_unlocked = false
+	load_endpoints()
 
 
 ## Stretches the master password into the key the container is encrypted with.
@@ -704,6 +720,14 @@ const SIGNER_KEYS := {
 	"rh": "RH_SIGNER_PRIVATE_KEY",
 }
 
+## Env names for RPC URLs, which are also stored in plaintext so reads do not
+## have to unlock the vault.
+const RPC_KEYS := {
+	"sol": "SOLANA_RPC_URL",
+	"mon": "MONAD_RPC_URL",
+	"rh": "ROBINHOOD_RPC_URL",
+}
+
 
 ## True once there is a signer configured for the given chain.
 func can_write(chain: String) -> bool:
@@ -711,6 +735,99 @@ func can_write(chain: String) -> bool:
 		return false
 	var key: String = SIGNER_KEYS.get(IQCosts.code(chain), "SOLANA_SIGNER_PRIVATE_KEY")
 	return not str(secrets[key]).is_empty()
+
+
+## Env key holding the given chain's signing key.
+func signer_env_key(chain: String) -> String:
+	return str(SIGNER_KEYS.get(IQCosts.code(chain), "SOLANA_SIGNER_PRIVATE_KEY"))
+
+
+## Env key holding the given chain's RPC URL.
+func rpc_env_key(chain: String) -> String:
+	return str(RPC_KEYS.get(IQCosts.code(chain), "SOLANA_RPC_URL"))
+
+
+## True once the user has been asked for RPC URLs on this machine (even if
+## they left them blank and took the public defaults).
+func endpoints_configured() -> bool:
+	return FileAccess.file_exists(endpoints_path)
+
+
+## True when the first on-chain read should ask for RPC URLs. A vault that is
+## already open counts as configured: those users set endpoints in KEYS, or
+## left them blank on purpose.
+func needs_rpc_prompt() -> bool:
+	if endpoints_configured():
+		return false
+	if is_unlocked:
+		save_endpoints()
+		return false
+	for env_key: String in RPC_KEYS.values():
+		if not str(secrets[env_key]).is_empty():
+			return false
+	return true
+
+
+## Loads saved RPC URLs into `secrets`. Does not touch signing keys.
+func load_endpoints() -> void:
+	if not FileAccess.file_exists(endpoints_path):
+		return
+	var file := FileAccess.open(endpoints_path, FileAccess.READ)
+	if file == null:
+		return
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	file.close()
+	if not parsed is Dictionary:
+		return
+	for env_key: String in RPC_KEYS.values():
+		if (parsed as Dictionary).has(env_key):
+			secrets[env_key] = str((parsed as Dictionary)[env_key])
+
+
+## Writes the current RPC URLs to the plaintext store. Blank values are kept
+## so we remember the user already chose the public defaults.
+func save_endpoints() -> bool:
+	var payload: Dictionary = {}
+	for env_key: String in RPC_KEYS.values():
+		payload[env_key] = str(secrets[env_key])
+	var file := FileAccess.open(endpoints_path, FileAccess.WRITE)
+	if file == null:
+		last_error = "Could not save RPC endpoints (error %d)." % FileAccess.get_open_error()
+		return false
+	file.store_string(JSON.stringify(payload))
+	file.close()
+	return true
+
+
+## True when the running sidecar was spawned with the secrets we hold now.
+func secrets_match_sidecar() -> bool:
+	return is_ready and _spawned_fingerprint == _secrets_fingerprint()
+
+
+## Pushes the current secrets into the running sidecar without restarting it.
+## Needed when a guest request is already parked: a restart would drop it.
+func apply_secrets() -> bool:
+	if not is_ready:
+		last_error = "The on-chain service is not running."
+		return false
+	var response: Dictionary = await _control_request(
+		"POST", "/control/secrets", {}, {"secrets": secrets}
+	)
+	if not response.get("ok", false):
+		last_error = str(
+			response.get("error", "Could not apply keys to the on-chain service.")
+		)
+		return false
+	_spawned_fingerprint = _secrets_fingerprint()
+	last_error = ""
+	return true
+
+
+func _secrets_fingerprint() -> String:
+	var acc := ""
+	for key: String in secrets:
+		acc += key + "=" + str(secrets[key]) + ";"
+	return acc
 
 #endregion
 

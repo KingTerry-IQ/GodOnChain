@@ -94,8 +94,15 @@ static func discovery_path() -> String:
 ## The name is a claim, not a credential: nothing verifies it, and the prompt
 ## shows it as self-declared. It buys identity, not trust.
 func discover(claim_name: String = "") -> bool:
-	_available = false
 	last_error = ""
+	# A named session token carries standing grants ("always allow reads").
+	# Re-running discovery would mint a fresh token with no scopes, so the
+	# host would ask again. Keep a token that still answers.
+	if _available and not token.is_empty() and not base_url.is_empty():
+		if await _confirm_health():
+			return true
+
+	_available = false
 
 	var env_url := OS.get_environment(ENV_URL)
 	var env_token := OS.get_environment(ENV_TOKEN)
@@ -111,8 +118,9 @@ func discover(claim_name: String = "") -> bool:
 		if await _confirm_health():
 			# Swap the shared anonymous token for one of our own, so prompts and
 			# the activity log can name us. Failure is not fatal: we simply stay
-			# anonymous, which is how this worked before.
-			if not claim_name.strip_edges().is_empty():
+			# anonymous, which is how this worked before. Only claim once: a
+			# second /session is a new token and forgets every grant.
+			if not claim_name.strip_edges().is_empty() and app_label.is_empty():
 				await _claim_name(claim_name.strip_edges())
 			return true
 

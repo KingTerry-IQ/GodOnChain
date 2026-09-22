@@ -136,5 +136,36 @@ console.log("\n--- an EVM chain still wants a table name ---");
     String(job.error).includes("RH"), String(job.error));
 }
 
+console.log("\n--- secrets can be pushed without a restart ---");
+{
+  const unauth = await call("/control/secrets", "not-the-token", {
+    method: "POST",
+    body: JSON.stringify({ secrets: { SOLANA_RPC_URL: "https://example.invalid" } }),
+  });
+  check("an unauthenticated push is refused", unauth.status === 401 || unauth.status === 403,
+    String(unauth.status));
+
+  const missing = await call("/control/secrets", CONTROL, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  check("a body without secrets is a 400", missing.status === 400, String(missing.status));
+
+  const pushed = await call("/control/secrets", CONTROL, {
+    method: "POST",
+    body: JSON.stringify({ secrets: { SOLANA_SIGNER_PRIVATE_KEY: "not-a-real-key" } }),
+  });
+  const pushedBody = await pushed.json().catch(() => ({}));
+  check("the host can push a key into a running sidecar",
+    pushed.status === 200 && pushedBody.ok === true, JSON.stringify(pushedBody));
+
+  // /wallet is a read: it should now attempt to derive an address from the
+  // garbage key and fail inside the SDK, which is the proof the env changed.
+  const wallet = await (await call("/wallet", CONTROL)).json().catch(() => ({}));
+  check("  and a later read sees it",
+    wallet.sol && String(wallet.sol.error || "").length > 0,
+    JSON.stringify(wallet));
+}
+
 console.log(`\n${fail} failure(s), ${pass} passed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -38,6 +38,9 @@ var approvals: IQApprovals
 var activity: IQActivity
 
 var _file_upload_path: String = ""
+## Serialises just-in-time unlock / RPC / key prompts so two requests cannot
+## stack overlays on top of each other.
+var _ensuring: bool = false
 
 var downloaded_data: PackedByteArray # Holds the file data after download
 
@@ -77,6 +80,7 @@ func _ready() -> void:
 ## Builds the on-chain screens under `root`, the themed Control they live in.
 func attach_ui(root: Control) -> void:
 	settings.attach(root)
+	approvals.gate = self
 	approvals.attach(root)
 
 
@@ -108,7 +112,7 @@ func start_backend() -> bool:
 
 
 func _on_settings_saved() -> void:
-	await restart_backend()
+	await _apply_sidecar_secrets()
 
 
 ## Restarts the sidecar, e.g. after the keys changed.
@@ -126,6 +130,78 @@ func can_write(chain: String) -> bool:
 	return host != null and host.can_write(chain)
 
 
+## Asks for RPC URLs once, and pushes them into the sidecar if they changed.
+## Local cache hits must not call this: they never talk to a chain.
+func ensure_ready_for_read(chain: String) -> bool:
+	await _wait_ensure_turn()
+	var ok := await _ensure_ready_for_read(chain)
+	_ensuring = false
+	return ok
+
+
+## Unlocks (required), asks for RPC URLs if needed, then the signing key for
+## this chain only, and applies them to the sidecar.
+func ensure_ready_for_write(chain: String) -> bool:
+	await _wait_ensure_turn()
+	var ok := await _ensure_ready_for_write(chain)
+	_ensuring = false
+	return ok
+
+
+## Guest-app approval hook: a read needs endpoints, a write or reveal needs
+## the chain's signing key as well.
+func ensure_for_approval(approval: Dictionary) -> bool:
+	var details: Dictionary = approval.get("details", {})
+	var chain := str(details.get("chain", "sol"))
+	var scope := str(approval.get("scope", "write"))
+	if scope == "read":
+		return await ensure_ready_for_read(chain)
+	return await ensure_ready_for_write(chain)
+
+
+func _wait_ensure_turn() -> void:
+	while _ensuring:
+		await get_tree().process_frame
+	_ensuring = true
+
+
+func _ensure_ready_for_read(_chain: String) -> bool:
+	# A locked vault is asked for on the first on-chain read, not at startup.
+	# Skip still lets the read proceed with public or plaintext RPCs.
+	if settings.needs_unlock():
+		await settings.prompt_unlock(false)
+	if host.needs_rpc_prompt():
+		if not await settings.prompt_rpcs():
+			return false
+	return await _apply_sidecar_secrets()
+
+
+func _ensure_ready_for_write(chain: String) -> bool:
+	if settings.needs_unlock():
+		if not await settings.prompt_unlock(true):
+			return false
+	if host.needs_rpc_prompt():
+		if not await settings.prompt_rpcs():
+			return false
+	if not host.can_write(chain):
+		if not await settings.prompt_signer(chain):
+			return false
+	if not host.can_write(chain):
+		return false
+	return await _apply_sidecar_secrets()
+
+
+## Pushes in-memory secrets into the running sidecar when they have changed
+## (unlock, new RPC, new key). Restarts only if this sidecar is too old to
+## accept a live update.
+func _apply_sidecar_secrets() -> bool:
+	if host.secrets_match_sidecar():
+		return host.is_ready
+	if await host.apply_secrets():
+		return true
+	return await restart_backend()
+
+
 func select_file_for_upload() -> void:
 	file_upload_dialog.popup_centered_ratio(0.6)
 
@@ -135,6 +211,9 @@ func select_file_for_upload() -> void:
 func read_code_in_metadata(
 	signature: String, progress_callback: Callable = Callable(), chain: String = "SOL"
 ) -> String:
+	if not await ensure_ready_for_read(chain):
+		load_failed.emit()
+		return ""
 	load_started.emit()
 
 	var metadata_dict: Dictionary = await client.read_metadata(signature, chain)
@@ -158,6 +237,9 @@ func read_code_in_text(
 	progress_callback: Callable = Callable(),
 	chain: String = "SOL"
 ) -> String:
+	if not await ensure_ready_for_read(chain):
+		load_failed.emit()
+		return ""
 	load_started.emit()
 	var response = await client.read_code_in(signature, chain, progress_callback)
 	if response:
@@ -176,6 +258,9 @@ func read_code_in_file(
 	progress_callback: Callable = Callable(),
 	chain: String = "SOL"
 ) -> void:
+	if not await ensure_ready_for_read(chain):
+		load_failed.emit()
+		return
 	load_started.emit()
 	var response = await client.read_code_in(signature, chain, progress_callback)
 	if !response:
@@ -211,8 +296,6 @@ func read_code_in_godot_pck(
 	progress_callback: Callable = Callable(),
 	chain: String = "SOL"
 ) -> void:
-	load_started.emit()
-
 	var dir_path: String = "user://app/%s" % signature
 	var dir_err = DirAccess.make_dir_recursive_absolute(dir_path)
 	if dir_err != OK:
@@ -231,9 +314,15 @@ func read_code_in_godot_pck(
 					var cached_path := dir_path + "/" + file_name
 					var cached_globalized_path := ProjectSettings.globalize_path(cached_path)
 					print("Using cached file: " + cached_globalized_path)
+					load_started.emit()
 					await pck_executor.execute_subproject(cached_globalized_path, signature)
 					load_complete.emit()
-					return  # Skip download
+					return  # Skip download — no RPC, no password, no chain.
+
+	if not await ensure_ready_for_read(chain):
+		load_failed.emit()
+		return
+	load_started.emit()
 	var response = await client.read_code_in(signature, chain, progress_callback)
 	if !response:
 		push_error("Read failed: " + client.last_error)
@@ -275,6 +364,9 @@ func write_code_in_text(
 	progress_callback: Callable = Callable(),
 	chain: String = "SOL"
 ) -> String:
+	if not await ensure_ready_for_write(chain):
+		load_failed.emit()
+		return ""
 	load_started.emit()
 	var encrypted: String = await data_handler.encrypt(data, encrypt_type, encrypt_pass)
 	var response = await client.write_code_in(encrypted, "", "", chain, progress_callback)
@@ -292,6 +384,9 @@ func write_code_in_file(
 	progress_callback: Callable = Callable(),
 	chain: String = "SOL"
 ) -> String:
+	if not await ensure_ready_for_write(chain):
+		load_failed.emit()
+		return ""
 	load_started.emit()
 
 	if _file_upload_path.is_empty():
@@ -363,6 +458,9 @@ func upload_payload_bytes() -> int:
 func get_db_table_list(
 	db_root_id: String, progress_callback: Callable = Callable(), chain: String = "SOL"
 ) -> Dictionary:
+	if not await ensure_ready_for_read(chain):
+		load_failed.emit()
+		return {}
 	load_started.emit()
 
 	var result: Dictionary = await client.get_db_table_list(db_root_id, chain, progress_callback)
@@ -383,6 +481,9 @@ func read_db_table_rows(
 	limit: int = 20,
 	before: String = ""
 ) -> Dictionary:
+	if not await ensure_ready_for_read(chain):
+		load_failed.emit()
+		return {}
 	load_started.emit()
 
 	var result: Dictionary

@@ -18,12 +18,13 @@
   },
   "license": "ISC",
   "dependencies": {
-	"@iqlabs-official/ethereum-sdk": "^0.3.0",
-	"@iqlabs-official/solana-sdk": "0.2.0",
+	"@iqlabs-official/ethereum-sdk": "0.4.0",
+	"@iqlabs-official/solana-sdk": "0.3.0",
 	"@noble/curves": "^2.4.0",
 	"@solana/web3.js": "^1.99.0",
 	"bs58": "^6.0.0",
 	"dotenv": "^17.3.1",
+	"ethers": "^6.16.0",
 	"express": "^5.2.1",
 	"hanlock": "^1.0.2"
   },
@@ -34,5 +35,8 @@
 	"postject": "^1.0.0-alpha.6",
 	"ts-node": "^10.9.2",
 	"typescript": "^5.9.3"
+  },
+  "overrides": {
+	"ethers": "^6.16.0"
   }
 }

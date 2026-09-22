@@ -42,6 +42,8 @@ await build({
   // so leaving them unbundled just means the pure-JS path is used.
   external: ["bufferutil", "utf-8-validate"],
   logOverride: { "require-resolve-not-external": "silent" },
+  // ethereum-sdk depends on ethers too; alias so the bundle is one copy.
+  alias: { ethers: join(root, "node_modules", "ethers") },
 });
 console.log(`  -> ${bundlePath}`);
 

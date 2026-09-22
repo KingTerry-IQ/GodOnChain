@@ -93,14 +93,15 @@ func _append(entry: Dictionary) -> void:
 	var chain := str(entry.get("chain", ""))
 	var bytes := int(entry.get("bytes", 0))
 	var outcome := str(entry.get("outcome", ""))
+	var action := str(entry.get("action", ""))
 	var spends := scope == "write" and outcome != "denied" and outcome != "blocked"
 
 	# Only a write that actually went through costs anything. Quoting a price
 	# beside a refused request would read as though it had been charged for.
-	var cost := IQCosts.format(chain, bytes) if spends else ""
+	var cost := IQCosts.format(chain, bytes, action) if spends else ""
 	if spends:
 		var key := IQCosts.code(chain)
-		_spent[key] = float(_spent[key]) + IQCosts.estimate(chain, bytes)
+		_spent[key] = float(_spent[key]) + IQCosts.estimate(chain, bytes, action)
 
 	var subject := str(entry.get("subject", ""))
 	var line := "[color=#%s]%s  %s %s %s %s[/color]" % [

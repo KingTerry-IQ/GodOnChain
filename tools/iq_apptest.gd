@@ -42,6 +42,7 @@ func _run() -> void:
 	# point every app on the machine at this suite's sidecar, and removing it
 	# on teardown would leave a running GodOnChain undiscoverable.
 	host.discovery_file = "user://apptest_host.json"
+	host.endpoints_path = "user://apptest_endpoints.cfg"
 	root.add_child(host)
 	await process_frame
 	host.approval_requested.connect(_capture)

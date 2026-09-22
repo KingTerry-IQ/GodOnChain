@@ -1,7 +1,7 @@
 ## Builders for the full-screen prompt overlays used by the on-chain UI.
 ##
 ## browser_ui.tscn already prompts this way — AddBookmark, FolderPrompt,
-## MovePrompt — so the screens added in code (keys, unlock, write approval)
+## MovePrompt — so the screens added in code (keys, unlock, RPC, signer, write approval)
 ## are assembled the same shape here rather than each rolling its own. They
 ## are plain Controls under the themed root, so iq_theme.tres applies without
 ## any per-node styling.

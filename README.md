@@ -86,12 +86,12 @@ Service details, including the security model, are in
    wsl bash build-linux.sh                       # additionally, for Linux exports
    ```
 3. Open `project.godot` in Godot 4.6+ and press **F5**.
-4. Click **KEYS** (top right) and enter your signing keys and RPC URLs, plus a
-   master password to encrypt them with. They are stored encrypted on this
-   machine only and passed to the local service. Skip it entirely if you only
-   want to read — reading needs no key.
-   On later launches you are asked for that master password, and can choose
-   **Read-only** to carry on without it.
+4. Launching the app does not ask for a password. Cached Godot apps run
+   immediately. The first on-chain **read** asks for RPC URLs (optional —
+   blank uses the public defaults) and, if you already have a vault, your
+   master password. The first **write** asks for that chain's signing key
+   only, and a master password to encrypt it. Click **KEYS** (top right) if
+   you want to fill every chain in ahead of time.
 5. (Optional but recommended for PCKs) Click **Select** next to "Godot Path"
    and point to your Godot executable.
 6. Enter a transaction/signature ID, pick chain + options, hit **Go**.
@@ -130,7 +130,7 @@ The app icon blends Godot's distinctive three-lobe abstract mascot, blockchain c
 │   │   ├── IQ_SDK.gd        # App-level SDK surface (reads, writes, PCKs)
 │   │   ├── iq_host.gd       # Spawns/reaps the service, mints app tokens
 │   │   ├── iq_approvals.gd  # "App X wants to spend" prompts
-│   │   ├── iq_settings.gd   # Encrypted key vault (unlock + keys screens)
+│   │   ├── iq_settings.gd   # Vault UI: unlock, RPC/signer prompts, KEYS
 │   │   ├── iq_overlay.gd    # Shared prompt-overlay builders
 │   │   ├── data_handler.gd  # AES + HanLock encrypt/decrypt
 │   │   └── pck_executor.gd  # Launches external Godot --main-pack <pck>

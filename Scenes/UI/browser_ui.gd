@@ -76,11 +76,15 @@ var bookmarks: Array[Variant] = []
 
 
 func _ready() -> void:
+	options = Options.new()
+	var have_godot := false
 	if ResourceLoader.exists(OPTIONS_PATH):
-		options = ResourceLoader.load(OPTIONS_PATH, "", ResourceLoader.CACHE_MODE_IGNORE)
-		iq_sdk.pck_executor._on_godot_selector_file_selected(options.godot_exe_path)
-	else:
-		options = Options.new()
+		var loaded: Resource = ResourceLoader.load(OPTIONS_PATH, "", ResourceLoader.CACHE_MODE_IGNORE)
+		if loaded is Options:
+			options = loaded
+			if not options.godot_exe_path.is_empty() and FileAccess.file_exists(options.godot_exe_path):
+				iq_sdk.pck_executor._on_godot_selector_file_selected(options.godot_exe_path)
+				have_godot = true
 	load_bookmarks()
 	# Migrate old flat bookmarks if they lack structure (they work as root leaves already)
 	if bookmarks == null or not bookmarks is Array:
@@ -97,23 +101,18 @@ func _ready() -> void:
 	# downloaded, and a record nobody looks at is not accountability.
 	iq_sdk.attach_activity($Panel/MarginContainer/MainVBox)
 	iq_sdk.backend_failed.connect(_on_backend_failed)
+	if not have_godot:
+		_ensure_godot_runtime()
 	await _start_backend()
 
 
 ## Brings up the bundled on-chain service and reports how it went.
+## Password, RPC URLs and signing keys are asked on the first real read or
+## write, not here — launching a cached app must not hit those prompts.
 func _start_backend() -> void:
-	# Keys live in an encrypted vault; reads do not need it, so unlocking is
-	# offered rather than required.
-	if iq_sdk.settings.needs_unlock():
-		_show_status("Unlock your signing keys, or continue read-only.")
-		await iq_sdk.settings.prompt_unlock()
-
 	_show_status("Starting the on-chain service...")
 	if await iq_sdk.start_backend():
 		_show_status("On-chain service ready.")
-		# First run: nothing is configured yet, so ask before they hit a failure.
-		if iq_sdk.settings.is_unconfigured():
-			iq_sdk.settings.open()
 	else:
 		_show_status("On-chain service unavailable. " + iq_sdk.host.last_error)
 
@@ -156,9 +155,14 @@ func _on_load_button_pressed() -> void:
 			content_label.text = ""
 			await iq_sdk.read_code_in_file(id, encrypt_option.selected, passphrase, spinner.set_progress, chain_option.text)
 		DataType.GODOT_PCK:
-			if iq_sdk.pck_executor._godot_exe_path == "":
-				_show_status("Please select a path for Godot before attempting to launch a Godot .PCK \n Godot may be downloaded from https://godotengine.org/")
-				return
+			if not iq_sdk.pck_executor.has_godot_exe():
+				_show_status("Downloading Godot before launching...")
+				spinner.visible = true
+				var fetched: bool = await iq_sdk.pck_executor.ensure_latest_godot(spinner.set_progress)
+				spinner.visible = false
+				if not fetched:
+					_show_status("Need a Godot executable to launch a .PCK. Click Select, or get it from https://godotengine.org/")
+					return
 			_show_status("Downloading and attempting to run Godot PCK at %s" % id)
 			content_label.text = ""
 			await iq_sdk.read_code_in_godot_pck(id, encrypt_option.selected, passphrase, godot_use_local_cache_check.button_pressed, spinner.set_progress, chain_option.text)
@@ -377,24 +381,25 @@ func _find_root_folder(fname: String) -> Dictionary:
 func _terry_default_bookmarks() -> Array[Variant]:
 	const SOL := 0
 	const MON := 1
+	const RH  := 2
 	return [
-		_make_folder("MON Godot apps", [
+		_make_folder("IQ-Integrated Apps", [
+			_make_bookmark("BurningBushProtocol (Deadman's Switch)", "0x368babd9dfd16ca377732a9e18627e72d0870e445544072604b14248f5d65526", DataType.GODOT_PCK, MON),
+			_make_bookmark("Reliquary (Flash Game Archive)", "0xdf308c7ac91ba805eb4e8053292bd8d501f27320ef1c599b55decbb75617a8c6", DataType.GODOT_PCK, MON)
+		]),
+		_make_folder("Other Immutable Apps", [
 			_make_bookmark("GOD", "0x495cbc05d9e6a4ae78614955df116c61f15673fbfbe116ad8be84bf7e8c617f8", DataType.GODOT_PCK, MON),
-			_make_bookmark("GodGivesSatoshiSeedPhrase", "0x0d0871dd2446a3ef83dc1578e3efbd63e4fb7ba53f56d9738f3d9c0bf07271ce", DataType.GODOT_PCK, MON),
-			_make_bookmark("GodDoodle", "0x71029e2791594e51e6ac30b1a069e2de477d07ada6c49d8cd6ea7ce19575072a", DataType.GODOT_PCK, MON),
-			_make_bookmark("BurningBushProtocol", "0x368babd9dfd16ca377732a9e18627e72d0870e445544072604b14248f5d65526", DataType.GODOT_PCK, MON),
-		]),
-		_make_folder("MON Downloadable Files", [
-			_make_bookmark("TempleOS ISO", "0x2b04df7d6ea4103d25a98208c93dc11e2978a48d95de03c2d1c0226f5f548db3", DataType.DOWNLOADABLE_FILE, MON),
-		]),
-		_make_folder("SOL Godot apps", [
 			_make_bookmark("GOD", "FVBWr5tASdzcaDBu7QgoEz1pbiNLqcWNcnmtdA8PkMEpr4j4ZbKK62T7bjVsY3HWw2Q8SfyFkX8jjcYVVEtPGdB", DataType.GODOT_PCK, SOL),
+			_make_bookmark("GOD", "0x7b943bed763b4cef3f8d446092a0da40f042cc9ee43e4a3083ebf8806e146855", DataType.GODOT_PCK, RH),
+			_make_bookmark("GodDoodle", "0x71029e2791594e51e6ac30b1a069e2de477d07ada6c49d8cd6ea7ce19575072a", DataType.GODOT_PCK, MON),			
+			_make_bookmark("GodGivesSatoshiSeedPhrase", "0x0d0871dd2446a3ef83dc1578e3efbd63e4fb7ba53f56d9738f3d9c0bf07271ce", DataType.GODOT_PCK, MON),
 			_make_bookmark("Pong", "4pWighbsUxyzvUn1RmEbFxEVZwc97r5CivYNqFGZs9upD7eHxu1mbo6EaPfp5ifJL6EghpCVvuEGX94hvMsQ3y3r", DataType.GODOT_PCK, SOL),
+			_make_bookmark("Pixelorama", "56JdKH2UnxM597oPH6XvEjm1vf8Zu5kmDjBnJhNb7UftS8UikAtYhz161Zp7oBqJ8NGxmzsvsnoD3GxsTFHpCavv", DataType.GODOT_PCK, SOL),			
 			_make_bookmark("DOOM", "3XxCCCirmnFRTJuuXzWN7U7ify64j5qhUEUhZSKGe2BvCY5RznwRJ9ZJyrCXQRZhGR5QSpyk3Y4SJtm6qDR8jo7s", DataType.GODOT_PCK, SOL),
-			_make_bookmark("Pixelorama", "56JdKH2UnxM597oPH6XvEjm1vf8Zu5kmDjBnJhNb7UftS8UikAtYhz161Zp7oBqJ8NGxmzsvsnoD3GxsTFHpCavv", DataType.GODOT_PCK, SOL),
 			_make_bookmark("GodotOS", "63XqBqdKLVUSbWu395tiLUwGKku9aNLB6RWVHAakqg2bPcZgAddD7sDWzy8ENmPfsubxTn56MLGm9h5vEjJpisqm", DataType.GODOT_PCK, SOL),
 		]),
-		_make_folder("SOL Downloadable Files", [
+		_make_folder("Immutable Files", [
+			_make_bookmark("TempleOS ISO", "0x2b04df7d6ea4103d25a98208c93dc11e2978a48d95de03c2d1c0226f5f548db3", DataType.DOWNLOADABLE_FILE, MON),
 			_make_bookmark("Quran", "5MeE35tzrCCoSEEUNCcg8xt4L5qAKeMrKMPLYr9mqe6zy4ZTdtcKnz1Z1WNtGVDqVkMLdLhnjjbTve3hwBbWaCDB", DataType.DOWNLOADABLE_FILE, SOL),
 		]),
 	]
@@ -683,22 +688,11 @@ func _on_chain_option_upload_item_selected(_index: int) -> void:
 
 ## Checks there is actually a usable signer before starting an inscription,
 ## so a locked vault or a missing key is a clear message rather than a failed
-## job several seconds later. Offers the unlock screen when that is the fix.
+## job several seconds later. Asks for this chain's key only, not the others.
 func _ensure_can_write(chain: String) -> bool:
-	if iq_sdk.can_write(chain):
+	if await iq_sdk.ensure_ready_for_write(chain):
 		return true
-
-	if iq_sdk.settings.needs_unlock():
-		_show_status("Unlock your signing keys to inscribe.")
-		if await iq_sdk.settings.prompt_unlock() and iq_sdk.can_write(chain):
-			# Keys reached the sidecar at spawn, so it needs restarting with them.
-			_show_status("Applying your keys...")
-			return await iq_sdk.restart_backend()
-		_show_status("Inscribing needs your signing keys. Still in read-only mode.")
-		return false
-
-	_show_status("No %s signing key is configured. Click KEYS to add one." % chain.to_upper())
-	iq_sdk.settings.open()
+	_show_status("Inscribing needs a %s signing key." % chain.to_upper())
 	return false
 
 
@@ -784,6 +778,25 @@ func _on_iqsdk_load_failed() -> void:
 
 func _on_iqsdk_load_started() -> void:
 	spinner.visible = true
+
+
+func _ensure_godot_runtime() -> void:
+	godot_path_label.text = "[Downloading...]"
+	status_label.show()
+	status_label.text = "Downloading latest Godot..."
+	var ok: bool = await iq_sdk.pck_executor.ensure_latest_godot(_on_godot_fetch_progress)
+	if ok:
+		return
+	godot_path_label.text = "[Not Yet Selected]"
+	var reason := iq_sdk.pck_executor.last_error
+	if reason.is_empty():
+		reason = "download failed"
+	_show_status("Could not auto-download Godot (%s). Click Select next to Godot Path, or get it from https://godotengine.org/" % reason)
+
+
+func _on_godot_fetch_progress(percent: int) -> void:
+	status_label.show()
+	status_label.text = "Downloading Godot... %d%%" % percent
 
 
 func _on_select_godot_path_button_pressed() -> void:

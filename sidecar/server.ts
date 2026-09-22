@@ -76,7 +76,12 @@ const hostToken = registerToken(
 )!;
 
 // === RPC URLs ===
-const solanaRpcUrl = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+// Read from env on every use so the host can push endpoints after spawn
+// (first on-chain read) without restarting this process and dropping a
+// parked guest request.
+const DEFAULT_SOLANA_RPC = "https://api.mainnet-beta.solana.com";
+const solanaRpcUrl = (): string =>
+  (process.env.SOLANA_RPC_URL || "").trim() || DEFAULT_SOLANA_RPC;
 
 // === EVM chains ===
 // Monad and Robinhood Chain are the same SDK against different deployments,
@@ -127,11 +132,45 @@ const evmSigner = (chain: EvmChain): Wallet => {
 };
 
 // === Solana setup ===
-solanaIqlabs.setRpcUrl(solanaRpcUrl);
-const solanaConnection = new Connection(solanaRpcUrl);
+solanaIqlabs.setRpcUrl(solanaRpcUrl());
+// Confirmed, not the Connection default (finalized). initialize_db_root is
+// confirmed below; createTable then getAccountInfo's the same PDA. If that
+// read is finalized, a just-created root looks missing and the SDK throws
+// "db_root not found" — the EVM path never hits this because it inits and
+// creates in one signer turn.
+let solanaConnection = new Connection(solanaRpcUrl(), "confirmed");
+
+/** Env keys the host is allowed to push after spawn. Anything else is ignored. */
+const SECRET_ENV_KEYS = [
+  "SOLANA_RPC_URL",
+  "SOLANA_SIGNER_PRIVATE_KEY",
+  "MONAD_RPC_URL",
+  "MON_SIGNER_PRIVATE_KEY",
+  "ROBINHOOD_RPC_URL",
+  "RH_SIGNER_PRIVATE_KEY",
+  "HANLOCK_PASS",
+] as const;
+
+const applySecrets = (incoming: Record<string, unknown>): void => {
+  for (const key of SECRET_ENV_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(incoming, key)) continue;
+    const value = String(incoming[key] ?? "").trim();
+    if (value) process.env[key] = value;
+    else delete process.env[key];
+  }
+  const url = solanaRpcUrl();
+  solanaIqlabs.setRpcUrl(url);
+  solanaConnection = new Connection(url, "confirmed");
+  evmProviders.clear();
+};
 
 const app = express();
 app.use(express.json({ limit: "16gb" }));
+// The EVM SDK puts bigint fees on table-list results. res.json uses
+// JSON.stringify, which throws on bigint and the client sees an empty list.
+app.set("json replacer", (_key: string, value: unknown) =>
+  typeof value === "bigint" ? value.toString() : value,
+);
 
 // No CORS headers by design. This process holds funded signers; letting a page
 // in the user's browser drive it would be a wallet-draining bug, and the bearer
@@ -173,6 +212,22 @@ app.delete("/control/tokens/:id", requireScope("control"), (req: Request, res: R
   const ok = revokeToken(String(req.params.id));
   if (!ok) return res.status(404).json({ error: "Unknown token id" });
   res.json({ revoked: String(req.params.id) });
+});
+
+/**
+ * Pushes RPC URLs and signing keys into this process without a restart.
+ *
+ * The host asks for these the first time a read or write actually needs them,
+ * which may be while a guest request is already parked. Restarting here would
+ * drop that request; updating env in place keeps the broker's queue.
+ */
+app.post("/control/secrets", requireScope("control"), (req: Request, res: Response) => {
+  const incoming = req.body?.secrets;
+  if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
+    return res.status(400).json({ error: "Missing secrets object" });
+  }
+  applySecrets(incoming as Record<string, unknown>);
+  res.json({ ok: true });
 });
 
 /**
@@ -399,7 +454,7 @@ app.get(
         address: signer.publicKey.toBase58(),
         balance: lamports / 1e9,
         unit: "SOL",
-        rpc: solanaRpcUrl,
+        rpc: solanaRpcUrl(),
       };
     } catch (err: any) {
       out.sol = { error: err.message || "Could not read the Solana wallet" };
@@ -1031,6 +1086,26 @@ const attachSigners = async (
  * Idempotent, and it never touches a root that already exists — including one
  * somebody else created, which stays theirs.
  */
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const readSolanaDbRoot = (address: PublicKey) =>
+  solanaConnection.getAccountInfo(address, "confirmed");
+
+/**
+ * Wait until createTable's getAccountInfo will see this PDA. A fixed sleep
+ * is not enough: some RPCs still miss a confirmed account for several slots.
+ */
+const waitForSolanaDbRoot = async (address: PublicKey, signature?: string) => {
+  for (let i = 0; i < 20; i++) {
+    if (await readSolanaDbRoot(address)) return;
+    await sleep(400);
+  }
+  const where = signature ? ` (tx ${signature})` : "";
+  throw new Error(
+    `Solana db_root at ${address.toBase58()} was initialised${where} but is not visible yet. Wait a few seconds and try again.`,
+  );
+};
+
 const ensureSolanaDbRoot = async (
   signer: Keypair,
   dbRootId: string,
@@ -1038,8 +1113,9 @@ const ensureSolanaDbRoot = async (
   const seed = solanaIqlabs.utils.toSeedBytes(dbRootId);
   const address = solanaIqlabs.contract.getDbRootPda(seed);
 
-  const existing = await solanaConnection.getAccountInfo(address);
-  if (existing) return { created: false, address: address.toBase58() };
+  if (await readSolanaDbRoot(address)) {
+    return { created: false, address: address.toBase58() };
+  }
 
   const builder = solanaIqlabs.contract.createInstructionBuilder();
   const instruction = solanaIqlabs.contract.initializeDbRootInstruction(
@@ -1058,6 +1134,7 @@ const ensureSolanaDbRoot = async (
     [signer],
     { commitment: "confirmed" },
   );
+  await waitForSolanaDbRoot(address, signature);
   return { created: true, address: address.toBase58(), signature };
 };
 
@@ -1197,8 +1274,6 @@ app.post(
         const root = await ensureSolanaDbRoot(signer, String(dbRootId).trim());
         if (root.created) {
           console.log(`[SOL] Initialised db_root "${dbRootId}" at ${root.address}`);
-          // Let it land before a table tries to reference it.
-          await new Promise((r) => setTimeout(r, 1500));
         }
 
         // Convert gate.mint and writers to PublicKey if strings provided
