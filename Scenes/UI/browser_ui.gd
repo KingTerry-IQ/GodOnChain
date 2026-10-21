@@ -385,7 +385,8 @@ func _terry_default_bookmarks() -> Array[Variant]:
 	return [
 		_make_folder("IQ-Integrated Apps", [
 			_make_bookmark("BurningBushProtocol (Deadman's Switch)", "0x368babd9dfd16ca377732a9e18627e72d0870e445544072604b14248f5d65526", DataType.GODOT_PCK, MON),
-			_make_bookmark("Reliquary (Flash Game Archive)", "0xdf308c7ac91ba805eb4e8053292bd8d501f27320ef1c599b55decbb75617a8c6", DataType.GODOT_PCK, MON)
+			_make_bookmark("Reliquary (Flash Game Archive)", "0xdf308c7ac91ba805eb4e8053292bd8d501f27320ef1c599b55decbb75617a8c6", DataType.GODOT_PCK, MON),
+			_make_bookmark("Ark (Internet Archive)", "0xf2d3c81d98ad8fafa176924980afcda699c80cc8ba206f5448f09651934630ed", DataType.GODOT_PCK, MON)
 		]),
 		_make_folder("Other Immutable Apps", [
 			_make_bookmark("GOD", "0x495cbc05d9e6a4ae78614955df116c61f15673fbfbe116ad8be84bf7e8c617f8", DataType.GODOT_PCK, MON),

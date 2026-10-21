@@ -19,6 +19,13 @@ import dotenv from "dotenv";
 import bs58 from "bs58";
 import { decodeWithPassword, encodeWithPassword } from "hanlock";
 import {
+  pinSolanaRead,
+  resetSolanaRead,
+  withEvmReadProgress,
+  withSolanaReadProgress,
+  withSolanaWriteProgress,
+} from "./sdk_progress.cjs";
+import {
   EVM_CHAINS,
   extractIQLabsMetadataFromTx,
   extractEvmMetadata,
@@ -54,7 +61,56 @@ const jobs = new Map<string, {
   /** Set while a spend is parked waiting on the user's answer. */
   awaitingApproval?: boolean;
   note?: string;
+  /** Present on chain reads and writes. A timelock job is local math and stays untagged. */
+  label?: string;
+  declared?: boolean;
+  action?: string;
+  subject?: string;
+  /** GodOnChain's own screens. Those already drive the full-screen spinner. */
+  own?: boolean;
 }>();
+
+const OWN_LABELS = new Set(["GodOnChain", "GodOnChain (host)"]);
+
+/** Opens a chain job tagged with who asked, so the host can show guest progress. */
+function beginJob(req: Request, action: string, subject: unknown): string {
+  const token = req.iqToken;
+  const label = token?.label ?? "";
+  const declared = Boolean(token?.declared);
+  const jobId = `job_${Date.now()}_${jobCounter++}`;
+  jobs.set(jobId, {
+    progress: 0,
+    status: "pending",
+    label,
+    declared,
+    action,
+    subject: String(subject ?? "").trim().slice(0, 180),
+    own: OWN_LABELS.has(label) && !declared,
+  });
+  return jobId;
+}
+
+/** Pending chain work that is not GodOnChain talking to itself. Oldest first. */
+function guestJobs() {
+  const out: Array<{
+    label: string;
+    declared: boolean;
+    action: string;
+    subject: string;
+    progress: number;
+  }> = [];
+  for (const job of jobs.values()) {
+    if (job.status !== "pending" || job.own || !job.action) continue;
+    out.push({
+      label: job.label ?? "",
+      declared: Boolean(job.declared),
+      action: job.action,
+      subject: job.subject ?? "",
+      progress: job.progress,
+    });
+  }
+  return out;
+}
 
 // === CLI / host handshake ===
 // The host picks a free port and mints the control token, then passes both in.
@@ -240,6 +296,19 @@ app.post("/control/secrets", requireScope("control"), (req: Request, res: Respon
 app.get("/control/activity", requireScope("control"), (req: Request, res: Response) => {
   const after = Number(req.query.after ?? 0);
   res.json({ activity: listActivity(Number.isFinite(after) ? after : 0) });
+});
+
+/**
+ * Chain work a guest app has actually started.
+ *
+ * A request parked on an approval is not a job yet: the gate waits before the
+ * handler runs. GodOnChain's own token is labelled "GodOnChain" and was minted
+ * here, so those jobs stay on the full-screen spinner. An app that calls
+ * itself that through /session is marked declared and still appears. Timelock
+ * solves are untagged and stay off this list.
+ */
+app.get("/control/jobs", requireScope("control"), (_req: Request, res: Response) => {
+  res.json(guestJobs());
 });
 
 /**
@@ -579,8 +648,7 @@ app.get(
     return res.status(400).json({ error: e.message });
   }
 
-  const jobId = `job_${Date.now()}_${jobCounter++}`;
-  jobs.set(jobId, { progress: 0, status: "pending" });
+  const jobId = beginJob(req, "readCodeIn", signature);
 
   (async () => {
     try {
@@ -652,8 +720,7 @@ app.post(
       return res.status(400).json({ error: e.message });
     }
 
-    const jobId = `job_${Date.now()}_${jobCounter++}`;
-    jobs.set(jobId, { progress: 0, status: "pending" });
+    const jobId = beginJob(req, "codeIn", filename);
 
     (async () => {
       try {
@@ -917,11 +984,13 @@ async function tolerantSolDbRows(solanaIqlabs: any, tablePda: string, options: a
     currentBefore = page[page.length - 1].signature;
     if (page.length < pageSize) break;
   }
+  resetSolanaRead(candidates.length);
 
   // Now process candidates (in order from "newer" to older in this window), but only return up to desiredLimit good rows.
   const rows: any[] = [];
-  for (const sig of candidates) {
+  for (let index = 0; index < candidates.length; index++) {
     if (rows.length >= desiredLimit) break;
+    const sig = candidates[index];
     let gotRow = false;
 
     // Always attempt the robust tx-level extract first (light on RPC for the tx itself, catches all db_code_in variants the metadata helper knows about).
@@ -986,6 +1055,7 @@ async function tolerantSolDbRows(solanaIqlabs: any, tablePda: string, options: a
     }
 
     // If we still didn't get anything from this sig, it was a non-row tx that touched the tablePda (create, other op, etc.). Skip silently.
+    pinSolanaRead(index + 1);
   }
 
   return rows;
@@ -1161,8 +1231,7 @@ app.post(
     return res.status(400).json({ error: "Missing required field: dbRootId" });
   }
 
-  const jobId = `job_${Date.now()}_${jobCounter++}`;
-  jobs.set(jobId, { progress: 0, status: "pending" });
+  const jobId = beginJob(req, "createTable", body.tableName ?? body.tableSeed);
 
   (async () => {
     try {
@@ -1358,8 +1427,7 @@ app.post(
     return res.status(400).json({ error: "Missing required: dbRootId, rowJson" });
   }
 
-  const jobId = `job_${Date.now()}_${jobCounter++}`;
-  jobs.set(jobId, { progress: 0, status: "pending" });
+  const jobId = beginJob(req, "writeRow", body.tableName ?? body.tableSeed);
 
   (async () => {
     try {
@@ -1405,13 +1473,18 @@ app.post(
 
         console.log(`[SOL][writeRow] Signer: ${signer.publicKey.toBase58()} db="${dbRootId}" seed="${tableSeed}"`);
 
-        const txSignature = await solanaIqlabs.writer.writeRow(
-          solanaConnection,
-          signer,
-          dbRootId,
-          tableSeed,
-          rowJson,
-          body.skipConfirmation ?? false,
+        const txSignature = await withSolanaWriteProgress((percent) => {
+          const job = jobs.get(jobId);
+          if (job) job.progress = percent;
+        }, () =>
+          solanaIqlabs.writer.writeRow(
+            solanaConnection,
+            signer,
+            dbRootId,
+            tableSeed,
+            rowJson,
+            body.skipConfirmation ?? false,
+          ),
         );
 
         const job = jobs.get(jobId);
@@ -1455,8 +1528,7 @@ app.get(
     return res.status(400).json({ error: e.message });
   }
 
-  const jobId = `job_${Date.now()}_${jobCounter++}`;
-  jobs.set(jobId, { progress: 0, status: "pending" });
+  const jobId = beginJob(req, "readTableRows", tableName ?? tablePda);
 
   (async () => {
     try {
@@ -1472,8 +1544,14 @@ app.get(
 
         console.log(`[${evmChain.toUpperCase()}][readTableRows] db="${dbRootId}" table="${tableName}" limit=${limit || "all"}`);
 
+        const reportRead = (percent: number) => {
+          const job = jobs.get(jobId);
+          if (job) job.progress = percent;
+        };
         let rows = await withEvm(evmChain, () =>
-          ethIqlabs.reader.readTableRows(dbRootId.trim(), tableName.trim(), options),
+          withEvmReadProgress(reportRead, () =>
+            ethIqlabs.reader.readTableRows(dbRootId.trim(), tableName.trim(), options),
+          ),
         );
         if (wantSigners) rows = await attachSigners(rows as any[], evmChain);
 
@@ -1501,14 +1579,26 @@ app.get(
         console.log(`[SOL][readTableRows] tablePda=${tablePda} options=${JSON.stringify(options)}`);
 
         let rows: any[] = [];
+        const reportRead = (percent: number) => {
+          const job = jobs.get(jobId);
+          if (job) job.progress = percent;
+        };
+        const expected = Array.isArray(options.signatures) ? options.signatures.length : 0;
         try {
-          rows = await solanaIqlabs.reader.readTableRows(tablePda, options);
+          rows = await withSolanaReadProgress(
+            reportRead,
+            () => solanaIqlabs.reader.readTableRows(tablePda, options),
+            expected,
+          );
         } catch (sdkErr: any) {
           // Some tables (e.g. blockchan) have mixed tx history on the tablePda (creates, other ops, db_code_in rows).
           // The SDK reader can hit decode errors on non-row txs (borsh layout mismatch in instruction data).
           // Fall back to a tolerant collector: walk sigs and only keep ones that successfully decode as DB rows via readCodeIn.
           console.warn(`[SOL] readTableRows SDK error for ${tablePda}, using tolerant collector: ${sdkErr.message}`);
-          rows = await tolerantSolDbRows(solanaIqlabs, tablePda, options);
+          rows = await withSolanaReadProgress(
+            reportRead,
+            () => tolerantSolDbRows(solanaIqlabs, tablePda, options),
+          );
         }
 
         if (wantSigners) rows = await attachSigners(rows as any[], "sol");
@@ -1554,8 +1644,7 @@ app.get(
     return res.status(400).json({ error: "Missing query param: dbRootId" });
   }
 
-  const jobId = `job_${Date.now()}_${jobCounter++}`;
-  jobs.set(jobId, { progress: 0, status: "pending" });
+  const jobId = beginJob(req, "listTables", dbRootId);
 
   (async () => {
     try {

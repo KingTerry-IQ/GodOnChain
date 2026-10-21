@@ -29,6 +29,9 @@ signal sidecar_lost(reason: String)
 signal approval_requested(approval: Dictionary)
 ## One or more things an app asked the sidecar to do, oldest first.
 signal activity_logged(entries: Array)
+## Chain work a guest app has in flight, oldest first. Empty when none.
+## GodOnChain's own jobs are not in this list.
+signal guest_jobs(jobs: Array)
 ## A pending approval went away without us answering (timed out, or the
 ## requesting app quit). Lets the UI dismiss a prompt that no longer matters.
 signal approval_withdrawn(approval_id: String)
@@ -98,6 +101,9 @@ var _approval_timer: Timer
 ## The last activity sequence number we have seen, so each poll asks only for
 ## what is new rather than re-reading the whole buffer.
 var _activity_seen: int = 0
+## Last /control/jobs body. Unchanged JSON is not announced again, so a job
+## sitting at 0% does not reset the bar on every poll.
+var _guest_jobs_body: String = ""
 ## Approval ids we have already announced, so we only emit once each.
 var _seen_approvals: Dictionary = {}
 ## Snapshot of `secrets` at the last successful spawn, so a later unlock or
@@ -513,6 +519,22 @@ func _poll_activity() -> void:
 	activity_logged.emit(fresh)
 
 
+## Guest chain jobs. A stable body is not re-emitted: a read that never reports
+## a fraction would otherwise reset the bar twice a second.
+func _poll_jobs() -> void:
+	if not is_ready:
+		return
+	var response: Dictionary = await _control_request("GET", "/control/jobs")
+	if not response.get("ok", false):
+		return
+	var text := str(response.get("text", ""))
+	if text == _guest_jobs_body:
+		return
+	_guest_jobs_body = text
+	var data: Variant = response.get("data")
+	guest_jobs.emit(data if data is Array else [])
+
+
 func _poll_approvals() -> void:
 	if not is_ready:
 		return
@@ -533,6 +555,7 @@ func _poll_approvals() -> void:
 	# Ride the same poll as approvals rather than adding a second timer: both
 	# are cheap loopback calls and the log is only interesting at human speed.
 	await _poll_activity()
+	await _poll_jobs()
 
 	var pending: Array = (data as Dictionary).get("approvals", [])
 	var live := {}

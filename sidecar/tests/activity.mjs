@@ -53,8 +53,23 @@ check("the log starts somewhere", Number.isInteger(start), String(start));
 const app = await mint("ledger-probe.pck");
 const refused = call("/db/getTablelistFromRoot?dbRootId=probe&chain=sol", app.token);
 const prompt = await waitForPrompt("listTables");
+const parkedJobs = await (await call("/control/jobs", CONTROL)).json();
+check("/control/jobs is an array", Array.isArray(parkedJobs), typeof parkedJobs);
+check(
+  "a parked read is not a job yet",
+  Array.isArray(parkedJobs) && parkedJobs.length === 0,
+  JSON.stringify(parkedJobs),
+);
 if (prompt) await answer(prompt.id, false, false);
 await refused;
+const afterJobs = await (await call("/control/jobs", CONTROL)).json();
+check(
+  "a denied read leaves no job",
+  Array.isArray(afterJobs) && afterJobs.length === 0,
+  JSON.stringify(afterJobs),
+);
+const forbidden = await call("/control/jobs", app.token);
+check("a guest cannot list jobs", forbidden.status === 403, String(forbidden.status));
 
 let seen = await activity(start);
 check("a refused read is recorded", seen.length >= 1, String(seen.length));

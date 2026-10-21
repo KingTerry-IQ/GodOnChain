@@ -31,6 +31,12 @@ var _log: RichTextLabel
 var _summary: Label
 var _spent: Dictionary = {"sol": 0.0, "mon": 0.0, "rh": 0.0}
 var _lines: int = 0
+var _work: VBoxContainer
+var _work_label: Label
+var _work_bar: ProgressBar
+var _work_timer: Timer
+## True once the hide timer is armed, so a second empty poll does not restart it.
+var _work_hiding := false
 
 
 func _init(iq_host: IQHost = null) -> void:
@@ -48,6 +54,7 @@ func attach(column: BoxContainer) -> void:
 		return
 
 	host.activity_logged.connect(_on_activity)
+	host.guest_jobs.connect(_on_guest_jobs)
 
 	var panel := PanelContainer.new()
 	panel.name = "IQActivity"
@@ -70,6 +77,31 @@ func attach(column: BoxContainer) -> void:
 	header.add_child(_summary)
 	box.add_child(header)
 
+	# Sits in the log, under the approval overlays, so Allow and Deny stay
+	# clickable while a guest app is writing. GodOnChain's own work uses the
+	# full-screen spinner and is not listed here.
+	_work = VBoxContainer.new()
+	_work.name = "GuestWork"
+	_work.visible = false
+	_work.add_theme_constant_override("separation", 4)
+	_work_label = Label.new()
+	_work_label.add_theme_font_size_override("font_size", 12)
+	_work_label.clip_text = true
+	_work.add_child(_work_label)
+	_work_bar = ProgressBar.new()
+	_work_bar.show_percentage = false
+	_work_bar.min_value = 0
+	_work_bar.max_value = 100
+	_work_bar.custom_minimum_size = Vector2(0, 14)
+	_work.add_child(_work_bar)
+	box.add_child(_work)
+
+	_work_timer = Timer.new()
+	_work_timer.one_shot = true
+	_work_timer.wait_time = 1.2
+	_work_timer.timeout.connect(_hide_guest_work)
+	add_child(_work_timer)
+
 	_log = RichTextLabel.new()
 	_log.bbcode_enabled = true
 	_log.scroll_following = true
@@ -79,6 +111,46 @@ func attach(column: BoxContainer) -> void:
 	box.add_child(_log)
 
 	column.add_child(panel)
+
+
+## Oldest job names the line. Zero stays indeterminate: several chain calls
+## report no fraction until they finish. The bar lingers briefly after the
+## list goes empty so a run of writes does not flicker off between them.
+func _on_guest_jobs(jobs: Array) -> void:
+	if _work == null:
+		return
+	if jobs.is_empty():
+		if _work.visible and not _work_hiding:
+			_work_hiding = true
+			_work_timer.start()
+		return
+	_work_hiding = false
+	_work_timer.stop()
+	var first: Dictionary = jobs[0] if jobs[0] is Dictionary else {}
+	var parts := PackedStringArray()
+	var label := str(first.get("label", "")).strip_edges()
+	if not label.is_empty():
+		parts.append(label)
+	var action := str(first.get("action", "")).strip_edges()
+	if not action.is_empty():
+		parts.append(action)
+	var subject := str(first.get("subject", "")).strip_edges()
+	if not subject.is_empty():
+		parts.append(subject)
+	var line := "  ·  ".join(parts)
+	if jobs.size() > 2:
+		line += "  ·  +%d more" % (jobs.size() - 1)
+	_work_label.text = line if not line.is_empty() else "Working"
+	var progress := float(first.get("progress", 0))
+	_work_bar.indeterminate = progress <= 0.0
+	_work_bar.value = progress
+	_work.visible = true
+
+
+func _hide_guest_work() -> void:
+	_work_hiding = false
+	if _work != null:
+		_work.visible = false
 
 
 func _on_activity(entries: Array) -> void:

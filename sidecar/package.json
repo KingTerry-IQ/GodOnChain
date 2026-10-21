@@ -12,6 +12,7 @@
 	"build:linux": "bash build-linux.sh",
 	"test:scopes": "node tests/run-readgate.mjs",
 	"test:activity": "node tests/run-readgate.mjs activity.mjs",
+	"test:progress": "node tests/sdk-progress.mjs",
 	"test:naming": "node tests/run-readgate.mjs naming.mjs",
 	"test:chains": "node tests/run-readgate.mjs chains.mjs",
 	"test:turns": "node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON tests/evm-turns.mjs"
