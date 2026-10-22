@@ -20,14 +20,15 @@
 
 set -euo pipefail
 
-NODE_VERSION="v22.18.0"
+NODE_VERSION="v22.23.4"
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK_DIR="${IQ_BUILD_DIR:-$HOME/.cache/iq-sidecar-build}"
 
 echo "==> Locating a Linux Node"
 NODE_BIN=""
 for candidate in "$HOME/.local/node22/bin" "$(dirname "$(command -v node 2>/dev/null || echo /nonexistent)")"; do
-  if [ -x "$candidate/node" ] && "$candidate/node" --version >/dev/null 2>&1; then
+  if [ -x "$candidate/node" ] && [ "$("$candidate/node" --version 2>/dev/null)" = "$NODE_VERSION" ]; then
+    # The binary embeds this Node, so only the pinned (patched) version will do.
     # Reject anything living on a Windows mount.
     case "$candidate" in
       /mnt/*) continue ;;
@@ -54,16 +55,16 @@ echo "    node $(node --version) at $(command -v node)"
 echo "==> Staging sources in $WORK_DIR"
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
-# Every TypeScript source, not an enumerated list: a hardcoded set silently
+# Every TypeScript and CommonJS source (with its .d.cts types), not an enumerated list: a hardcoded set silently
 # omits new modules, and the failure surfaces as a typecheck error much later.
-cp "$SRC_DIR"/*.ts "$WORK_DIR/"
-for f in package.json tsconfig.json build.mjs; do
+cp "$SRC_DIR"/*.ts "$SRC_DIR"/*.cjs "$SRC_DIR"/*.d.cts "$WORK_DIR/"
+for f in package.json package-lock.json tsconfig.json build.mjs; do
   cp "$SRC_DIR/$f" "$WORK_DIR/$f"
 done
 cd "$WORK_DIR"
 
-echo "==> npm install"
-npm install --no-audit --no-fund --loglevel=error
+echo "==> npm ci (exact versions from the lockfile)"
+npm ci --no-audit --no-fund --loglevel=error
 
 echo "==> Typecheck"
 npx tsc --noEmit

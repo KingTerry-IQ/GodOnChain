@@ -19,8 +19,8 @@
   },
   "license": "ISC",
   "dependencies": {
-	"@iqlabs-official/ethereum-sdk": "0.4.0",
-	"@iqlabs-official/solana-sdk": "0.3.0",
+	"@iqlabs-official/ethereum-sdk": "0.4.3",
+	"@iqlabs-official/solana-sdk": "0.3.6",
 	"@noble/curves": "^2.4.0",
 	"@solana/web3.js": "^1.99.0",
 	"bs58": "^6.0.0",
